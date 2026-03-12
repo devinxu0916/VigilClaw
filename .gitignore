@@ -33,3 +33,12 @@ coverage/
 
 # Docker
 .docker/
+
+# Claude Code
+.claude/
+
+# OpenSpec
+.openspec/
+
+# Runtime
+*.pid
