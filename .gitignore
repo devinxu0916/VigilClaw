@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime data
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+.env.local
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+
+# Docker
+.docker/

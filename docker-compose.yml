@@ -1,0 +1,23 @@
+services:
+  vigilclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vigilclaw-host
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vigilclaw-data:/app/data
+    environment:
+      - VIGILCLAW_LOG_LEVEL=info
+      - VIGILCLAW_TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - VIGILCLAW_MASTER_KEY=${MASTER_KEY}
+      - VIGILCLAW_DB_PATH=/app/data/vigilclaw.db
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  vigilclaw-data:
+    driver: local

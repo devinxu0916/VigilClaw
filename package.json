@@ -1,0 +1,48 @@
+{
+  "name": "vigilclaw",
+  "version": "0.1.0",
+  "description": "Security-first personal AI assistant with container isolation and cost control",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsx --watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "docker:build": "docker build -t vigilclaw/agent-runner:latest container/agent-runner/",
+    "deps:check": "bash scripts/check-deps.sh",
+    "deps:audit": "pnpm audit --audit-level=high"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "better-sqlite3": "^11.8.0",
+    "cron-parser": "^5.5.0",
+    "dockerode": "^4.0.4",
+    "grammy": "^1.35.0",
+    "pino": "^9.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/dockerode": "^3.3.35",
+    "@typescript-eslint/eslint-plugin": "^8.24.0",
+    "@typescript-eslint/parser": "^8.24.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "eslint": "^9.20.0",
+    "pino-pretty": "^13.0.0",
+    "prettier": "^3.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "license": "MIT"
+}

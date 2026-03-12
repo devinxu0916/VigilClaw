@@ -1,0 +1,71 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_AARCH64"],
+  "syscalls": [
+    {
+      "names": [
+        "read", "write", "close", "fstat", "lseek", "mmap", "mprotect",
+        "munmap", "brk", "ioctl", "access", "pipe", "pipe2",
+        "select", "poll", "ppoll", "epoll_create1", "epoll_ctl", "epoll_wait",
+        "dup", "dup2", "dup3", "clone", "clone3", "fork", "vfork",
+        "execve", "execveat", "exit", "exit_group", "wait4", "waitid",
+        "kill", "tgkill", "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
+        "getpid", "getppid", "getuid", "getgid", "geteuid", "getegid",
+        "gettid", "set_tid_address", "set_robust_list"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "open", "openat", "openat2", "creat", "rename", "renameat",
+        "renameat2", "unlink", "unlinkat", "mkdir", "mkdirat", "rmdir",
+        "link", "linkat", "symlink", "symlinkat", "readlink", "readlinkat",
+        "stat", "lstat", "newfstatat", "statx", "fstatfs",
+        "getcwd", "chdir", "fchdir",
+        "getdents", "getdents64",
+        "fcntl", "flock", "fsync", "fdatasync",
+        "truncate", "ftruncate", "fallocate",
+        "utimensat", "futimesat",
+        "chmod", "fchmod", "fchmodat",
+        "chown", "fchown", "fchownat", "lchown"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "socket", "connect", "bind", "listen", "accept", "accept4",
+        "sendto", "recvfrom", "sendmsg", "recvmsg",
+        "getsockname", "getpeername", "getsockopt", "setsockopt",
+        "shutdown"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "madvise", "mremap", "msync", "mincore",
+        "shmget", "shmat", "shmdt", "shmctl",
+        "futex", "membarrier"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "clock_gettime", "clock_getres", "clock_nanosleep",
+        "nanosleep", "gettimeofday",
+        "getrandom"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "eventfd2", "signalfd4", "timerfd_create", "timerfd_settime",
+        "prctl", "arch_prctl", "sched_getaffinity", "sched_yield",
+        "prlimit64", "getrlimit", "setrlimit",
+        "uname", "sysinfo",
+        "pread64", "pwrite64", "readv", "writev",
+        "sendfile", "splice", "tee"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}
