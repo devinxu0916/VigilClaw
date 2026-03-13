@@ -63,7 +63,7 @@ export class Router {
 
     this.sessionManager.saveUserMessage(msg.userId, msg.groupId, msg.text ?? '[image]');
 
-    const context = this.sessionManager.getContext(msg.userId, msg.groupId);
+    const context = await this.sessionManager.getContext(msg.userId, msg.groupId);
     const user = this.db.getUser(msg.userId);
     const model = user?.currentModel ?? this.defaultModel;
 

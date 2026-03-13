@@ -6,6 +6,37 @@
 
 ### Added
 
+- **Phase 2: 上下文压缩** (`src/context-compressor.ts`)
+  - 基于 token 预算的智能上下文压缩（默认 6000 tokens 触发）
+  - 增量摘要策略：旧消息用 Haiku 模型生成滚动摘要，保留最近 6 条完整消息
+  - 字符估算 token 计数（`Math.ceil(text.length / 4)`），零 API 成本
+  - 摘要持久化到 `context_summaries` 表，进程重启后恢复
+  - 降级逻辑：摘要 API 失败时回退到简单截断
+- **Phase 2: 持久化记忆** (`src/memory-store.ts` + `src/embedder.ts`)
+  - 基于 sqlite-vec 的向量相似度搜索，跨会话记忆召回
+  - 本地嵌入生成：`@xenova/transformers` + `all-MiniLM-L6-v2` (384 维)，零 API 成本
+  - 对话结束后用 Haiku 模型异步提取值得记忆的事实
+  - 新对话开始时按语义相似度召回相关记忆注入上下文
+  - 用户/群组级别记忆隔离
+  - 降级逻辑：sqlite-vec 或嵌入模型不可用时静默禁用
+- 数据库迁移 v2：新增 `context_summaries`、`memories` 表 + `vec_memories` 虚拟表
+- 配置扩展：`session.maxContextTokens`、`session.recentMessagesKeep`、`memory.*` 配置项
+- 环境变量：`VIGILCLAW_MAX_CONTEXT_TOKENS`、`VIGILCLAW_RECENT_MESSAGES_KEEP`、`VIGILCLAW_MEMORY_ENABLED`
+- 新增依赖：`sqlite-vec` (向量搜索扩展)、`@xenova/transformers` (本地嵌入)
+- 单元测试：21 个新增测试（context-compressor 10 + memory-store 11），总计 73 tests
+
+### Changed
+
+- `src/session-manager.ts`：`getContext()` 改为异步方法，集成压缩器和记忆召回
+- `src/session-manager.ts`：`clearContext()` 同时清除 context_summaries
+- `src/session-manager.ts`：默认 contextLength 从 20 改为 50（给压缩器更多原始消息）
+- `src/db.ts`：加载 sqlite-vec 扩展（带降级），新增 `vecAvailable` 标志
+- `src/db.ts`：`cleanupOldData()` 新增清理过期记忆数据
+- `src/index.ts`：初始化链新增 Embedder、ContextCompressor、MemoryStore 模块
+- `src/index.ts`：任务完成后异步触发记忆提取
+
+### Added
+
 - 产品需求文档 (PRD) v1.0.0
 - 技术方案文档 4 篇（架构设计、安全模型、数据模型、部署方案）
 - 竞品调研报告 4 篇（OpenClaw 架构、用户痛点、轻量平替、NanoClaw 深度分析）

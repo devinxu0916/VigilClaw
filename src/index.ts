@@ -13,7 +13,10 @@ import { RateLimiter } from './rate-limiter.js';
 import { Router } from './router.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { startHealthServer } from './health.js';
-import { calculateCost } from './provider/claude.js';
+import { ClaudeProvider, calculateCost } from './provider/claude.js';
+import { ContextCompressor } from './context-compressor.js';
+import { Embedder } from './embedder.js';
+import { MemoryStore } from './memory-store.js';
 import { logger } from './logger.js';
 import type { IChannel } from './channels/types.js';
 import type { QueuedTask, TaskResult } from './types.js';
@@ -33,6 +36,24 @@ async function main(): Promise<void> {
   const costGuard = new CostGuard(db);
   const sessionManager = new SessionManager(db, config.session.contextLength);
   const securityLogger = new SecurityLogger(db);
+
+  const summaryProvider = new ClaudeProvider();
+
+  const compressor = new ContextCompressor(summaryProvider, db, {
+    maxContextTokens: config.session.maxContextTokens,
+    recentMessagesKeep: config.session.recentMessagesKeep,
+  });
+  sessionManager.setCompressor(compressor);
+
+  const embedder = new Embedder(config.memory.embeddingModel);
+  const memoryStore = new MemoryStore(db, embedder, summaryProvider, {
+    enabled: config.memory.enabled,
+    similarityThreshold: config.memory.similarityThreshold,
+    maxRecallCount: config.memory.maxRecallCount,
+  });
+  if (config.memory.enabled) {
+    sessionManager.setMemoryStore(memoryStore);
+  }
 
   const containerRunner = new ContainerRunner(config.docker, credentialProxy, config.dataDir);
   const localRunner = new LocalRunner(db, masterKey);
@@ -79,6 +100,18 @@ async function main(): Promise<void> {
 
       sessionManager.saveAssistantMessage(task.userId, task.groupId, result.response.content);
       await task.replyFn(result.response.content);
+
+      if (config.memory.enabled) {
+        const lastUserMsg = [...task.messages].reverse().find((m) => m.role === 'user');
+        if (lastUserMsg) {
+          void memoryStore.extractMemory(
+            task.userId,
+            task.groupId,
+            lastUserMsg.content,
+            result.response.content,
+          );
+        }
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
 

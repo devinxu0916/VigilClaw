@@ -6,7 +6,7 @@
 | -------- | -------------------- |
 | 文档版本 | v1.0.0               |
 | 创建日期 | 2026-03-11           |
-| 最后更新 | 2026-03-11           |
+| 最后更新 | 2026-03-13           |
 | 前置文档 | VigilClaw-PRD v1.0.0 |
 | 状态     | ✅ 全部完成          |
 
@@ -648,6 +648,17 @@
   - 启动检查：`docker info` → `container system status`
   - 容器列表：`docker ps` → `container ls --format json`
 
+#### ADR-007: 宿主机侧辅助 LLM 调用策略
+
+- 背景：Phase 2 的上下文压缩和记忆提取需要调用 LLM（Haiku 模型做摘要和事实提取）。技术方案原始设计中宿主机进程"永远不直接调用 LLM API"。
+- 决策：允许宿主机进程直接调用 LLM API，但仅限辅助任务（摘要、记忆提取），不涉及 Agent 推理。
+- 理由：
+  - 上下文压缩必须在宿主机侧进行（容器是临时的、任务结束即毁，无法跨任务维护摘要）
+  - 记忆提取是异步后处理，发生在容器任务完成后
+  - 宿主机是可信区域，直接调用 LLM 不违反安全模型（安全边界保护的是容器内不可信代码）
+  - 辅助调用固定使用 Haiku 模型，成本可控（~$0.001/次），并记录到 api_calls 表
+- 影响：宿主机进程职责表需更新，新增"通过辅助 Provider 调用 LLM（仅摘要和记忆提取）"
+
 ### B. 与 NanoClaw 的技术差异对照表
 
 | 维度            | NanoClaw                               | VigilClaw                                           | 差异原因                     |
@@ -664,18 +675,21 @@
 
 ### C. MVP 依赖预算
 
-| 类别     | 依赖              | 用途         | 大小             |
-| -------- | ----------------- | ------------ | ---------------- |
-| 运行时   | better-sqlite3    | SQLite 驱动  | ~2MB (native)    |
-| 运行时   | @anthropic-ai/sdk | Claude API   | ~200KB           |
-| 运行时   | grammy            | Telegram Bot | ~300KB           |
-| 运行时   | dockerode         | Docker API   | ~150KB           |
-| 运行时   | pino              | 日志         | ~200KB           |
-| 运行时   | zod               | Schema 校验  | ~60KB            |
-| 运行时   | cron-parser       | Cron 表达式  | ~30KB            |
-| 运行时   | chokidar          | 文件监控     | ~50KB            |
-| 安全     | 内置 crypto       | AES-256-GCM  | 0 (Node.js 内置) |
-| **总计** | **~8 个生产依赖** |              |                  |
+| 类别     | 依赖                 | 用途         | 大小                 |
+| -------- | -------------------- | ------------ | -------------------- |
+| 运行时   | better-sqlite3       | SQLite 驱动  | ~2MB (native)        |
+| 运行时   | sqlite-vec           | 向量搜索     | ~1MB (native)        |
+| 运行时   | @xenova/transformers | 本地嵌入     | ~500KB (+80MB model) |
+| 运行时   | @anthropic-ai/sdk    | Claude API   | ~200KB               |
+| 运行时   | grammy               | Telegram Bot | ~300KB               |
+| 运行时   | dockerode            | Docker API   | ~150KB               |
+| 运行时   | pino                 | 日志         | ~200KB               |
+| 运行时   | zod                  | Schema 校验  | ~60KB                |
+| 运行时   | cron-parser          | Cron 表达式  | ~30KB                |
+| 安全     | 内置 crypto          | AES-256-GCM  | 0 (Node.js 内置)     |
+| **总计** | **~9 个生产依赖**    |              |                      |
+
+> **注**：`uuid` 已移除，使用 `crypto.randomUUID()` 替代。
 
 ### D. 开发里程碑检查清单
 

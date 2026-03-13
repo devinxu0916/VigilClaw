@@ -40,8 +40,17 @@ export const CostConfigSchema = z.object({
 });
 
 export const SessionConfigSchema = z.object({
-  contextLength: z.number().default(20),
+  contextLength: z.number().default(50),
   idleTimeout: z.number().default(1800_000),
+  maxContextTokens: z.number().default(6000),
+  recentMessagesKeep: z.number().default(6),
+});
+
+export const MemoryConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  similarityThreshold: z.number().min(0).max(1).default(0.7),
+  maxRecallCount: z.number().default(5),
+  embeddingModel: z.string().default('Xenova/all-MiniLM-L6-v2'),
 });
 
 export const RateLimitConfigSchema = z.object({
@@ -60,6 +69,7 @@ export const ConfigSchema = z.object({
   provider: ProviderConfigSchema.default({}),
   cost: CostConfigSchema.default({}),
   session: SessionConfigSchema.default({}),
+  memory: MemoryConfigSchema.default({}),
   maxConcurrentContainers: z.number().default(5),
   rateLimit: RateLimitConfigSchema.default({}),
   healthPort: z.number().default(9100),
@@ -69,6 +79,8 @@ export type Config = z.infer<typeof ConfigSchema>;
 export type TelegramConfig = z.infer<typeof TelegramConfigSchema>;
 export type DockerConfig = z.infer<typeof DockerConfigSchema>;
 export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
+export type SessionConfig = z.infer<typeof SessionConfigSchema>;
+export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 
 function loadConfigFile(filePath: string): Record<string, unknown> {
   try {
@@ -101,6 +113,9 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_DOCKER_IMAGE: ['docker', 'image'],
     VIGILCLAW_DOCKER_TASK_TIMEOUT: ['docker', 'taskTimeout'],
     ANTHROPIC_MODEL: ['provider', 'claude', 'model'],
+    VIGILCLAW_MAX_CONTEXT_TOKENS: ['session', 'maxContextTokens'],
+    VIGILCLAW_RECENT_MESSAGES_KEEP: ['session', 'recentMessagesKeep'],
+    VIGILCLAW_MEMORY_ENABLED: ['memory', 'enabled'],
   };
 
   for (const [envKey, value] of Object.entries(process.env)) {

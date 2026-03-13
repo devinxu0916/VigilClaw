@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { CostReport } from './types.js';
+import { logger } from './logger.js';
 
 const SCHEMA_V1 = `
 CREATE TABLE users (
@@ -119,7 +120,33 @@ interface Migration {
   up: string;
 }
 
-const MIGRATIONS: Migration[] = [{ version: 1, description: 'Initial schema', up: SCHEMA_V1 }];
+const MIGRATIONS: Migration[] = [
+  { version: 1, description: 'Initial schema', up: SCHEMA_V1 },
+  {
+    version: 2,
+    description: 'Context compression and persistent memory',
+    up: `
+CREATE TABLE context_summaries (
+  session_key      TEXT PRIMARY KEY,
+  summary          TEXT NOT NULL,
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE memories (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id          TEXT NOT NULL,
+  group_id         TEXT,
+  scope_key        TEXT NOT NULL,
+  content          TEXT NOT NULL,
+  metadata         TEXT,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX idx_memories_scope ON memories(scope_key, created_at DESC);
+CREATE INDEX idx_memories_user  ON memories(user_id, created_at DESC);
+`,
+  },
+];
 
 function runMigrations(db: Database.Database): void {
   const currentVersion = db.pragma('user_version', { simple: true }) as number;
@@ -136,7 +163,7 @@ function runMigrations(db: Database.Database): void {
   migrate();
 }
 
-function initRawDatabase(dbPath: string): Database.Database {
+function initRawDatabase(dbPath: string): { db: Database.Database; vecAvailable: boolean } {
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -150,16 +177,48 @@ function initRawDatabase(dbPath: string): Database.Database {
   db.pragma('foreign_keys = ON');
   db.pragma('secure_delete = ON');
 
+  // Load sqlite-vec extension (graceful degradation)
+  let vecAvailable = false;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sqliteVec = require('sqlite-vec');
+    sqliteVec.load(db);
+    vecAvailable = true;
+  } catch {
+    logger.warn('sqlite-vec extension not available — memory features disabled');
+  }
+
   runMigrations(db);
-  return db;
+
+  // Create vec_memories virtual table after sqlite-vec is loaded and migration v2 has run
+  if (vecAvailable) {
+    const currentVersion = db.pragma('user_version', { simple: true }) as number;
+    if (currentVersion >= 2) {
+      try {
+        db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_memories USING vec0(
+            embedding float[384]
+          )
+        `);
+      } catch (err) {
+        logger.warn({ err }, 'Failed to create vec_memories virtual table');
+        vecAvailable = false;
+      }
+    }
+  }
+
+  return { db, vecAvailable };
 }
 
 export class VigilClawDB {
   private db: Database.Database;
   private stmts: ReturnType<VigilClawDB['prepareStatements']>;
+  readonly vecAvailable: boolean;
 
   constructor(dbPath: string) {
-    this.db = initRawDatabase(dbPath);
+    const { db, vecAvailable } = initRawDatabase(dbPath);
+    this.db = db;
+    this.vecAvailable = vecAvailable;
     this.stmts = this.prepareStatements();
   }
 
@@ -236,6 +295,24 @@ export class VigilClawDB {
       updateScheduledTaskLastRun: this.db.prepare(`
         UPDATE scheduled_tasks SET last_run_at = datetime('now'), retry_count = 0
         WHERE id = ?
+      `),
+      upsertContextSummary: this.db.prepare(`
+        INSERT INTO context_summaries (session_key, summary, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(session_key) DO UPDATE SET
+          summary = excluded.summary,
+          updated_at = datetime('now')
+      `),
+      getContextSummary: this.db.prepare(
+        `SELECT summary FROM context_summaries WHERE session_key = ?`,
+      ),
+      deleteContextSummary: this.db.prepare(`DELETE FROM context_summaries WHERE session_key = ?`),
+      insertMemory: this.db.prepare(`
+        INSERT INTO memories (user_id, group_id, scope_key, content, metadata)
+        VALUES (?, ?, ?, ?, ?)
+      `),
+      getMemoriesByScope: this.db.prepare(`
+        SELECT id, content FROM memories WHERE scope_key = ? ORDER BY created_at DESC
       `),
     };
   }
@@ -383,6 +460,68 @@ export class VigilClawDB {
     this.stmts.updateScheduledTaskLastRun.run(taskId);
   }
 
+  upsertContextSummary(sessionKey: string, summary: string): void {
+    this.stmts.upsertContextSummary.run(sessionKey, summary);
+  }
+
+  getContextSummary(sessionKey: string): string | null {
+    const row = this.stmts.getContextSummary.get(sessionKey) as { summary: string } | undefined;
+    return row?.summary ?? null;
+  }
+
+  deleteContextSummary(sessionKey: string): void {
+    this.stmts.deleteContextSummary.run(sessionKey);
+  }
+
+  insertMemory(memory: {
+    userId: string;
+    groupId?: string;
+    scopeKey: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }): number {
+    const result = this.stmts.insertMemory.run(
+      memory.userId,
+      memory.groupId ?? null,
+      memory.scopeKey,
+      memory.content,
+      memory.metadata ? JSON.stringify(memory.metadata) : null,
+    );
+    return Number(result.lastInsertRowid);
+  }
+
+  insertMemoryVector(rowid: number, embedding: Float32Array): void {
+    this.db
+      .prepare('INSERT INTO vec_memories(rowid, embedding) VALUES (?, ?)')
+      .run(BigInt(rowid), embedding);
+  }
+
+  searchMemoryVectors(
+    queryEmbedding: Float32Array,
+    limit: number,
+  ): Array<{ rowid: number; distance: number }> {
+    return this.db
+      .prepare(
+        `SELECT rowid, distance FROM vec_memories
+         WHERE embedding MATCH ? ORDER BY distance LIMIT ?`,
+      )
+      .all(queryEmbedding, limit) as Array<{ rowid: number; distance: number }>;
+  }
+
+  getMemoryById(id: number): { content: string; scope_key: string } | null {
+    const row = this.db.prepare('SELECT content, scope_key FROM memories WHERE id = ?').get(id) as
+      | { content: string; scope_key: string }
+      | undefined;
+    return row ?? null;
+  }
+
+  getMemoriesByScope(scopeKey: string): Array<{ id: number; content: string }> {
+    return this.stmts.getMemoriesByScope.all(scopeKey) as Array<{
+      id: number;
+      content: string;
+    }>;
+  }
+
   getCostReport(userId: string): CostReport {
     const dayCost = this.getUserDayCost(userId);
     const monthCost = this.getUserMonthCost(userId);
@@ -424,6 +563,26 @@ export class VigilClawDB {
       this.db
         .prepare("DELETE FROM security_events WHERE created_at < datetime('now', '-365 days')")
         .run();
+
+      if (this.vecAvailable) {
+        const oldMemories = this.db
+          .prepare("SELECT id FROM memories WHERE created_at < datetime('now', '-365 days')")
+          .all() as Array<{ id: number }>;
+
+        if (oldMemories.length > 0) {
+          const ids = oldMemories.map((m) => m.id);
+          for (const id of ids) {
+            this.db.prepare('DELETE FROM vec_memories WHERE rowid = ?').run(BigInt(id));
+          }
+          this.db
+            .prepare("DELETE FROM memories WHERE created_at < datetime('now', '-365 days')")
+            .run();
+        }
+      } else {
+        this.db
+          .prepare("DELETE FROM memories WHERE created_at < datetime('now', '-365 days')")
+          .run();
+      }
     });
     cleanup();
   }
