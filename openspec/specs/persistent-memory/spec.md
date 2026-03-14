@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+跨会话持久化记忆：对话结束后自动提取关键事实，通过本地嵌入向量和 sqlite-vec 存储，新对话开始时按语义相似度召回相关记忆注入上下文。
+
+## Requirements
 
 ### Requirement: Local embedding generation
 

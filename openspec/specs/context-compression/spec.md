@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+智能上下文压缩：当对话 token 数超过预算时，自动将旧消息增量摘要为 system prompt，保留最近消息完整性，避免上下文溢出和信息丢失。
+
+## Requirements
 
 ### Requirement: Token-aware context budgeting
 

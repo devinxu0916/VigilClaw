@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  VigilClaw — 安全优先的个人 AI 助手。Node.js 22 + TypeScript 5.7 (strict) + pnpm。
+  SQLite (better-sqlite3) 单数据库，9 个生产依赖。
+  架构：IChannel → Router → CostGuard → GroupQueue → ContainerRunner/LocalRunner → Docker Container (ReAct Loop)
+  Phase 2 已完成：上下文压缩（增量摘要）+ 持久化记忆（sqlite-vec 向量搜索 + @huggingface/transformers 本地嵌入）。
+
+  Spec 修复分级策略：
+  - Level 1 (Trivial)：typo/值同步 → 直接改 main spec + git commit
+  - Level 2 (偏差补正)：2+ 需求/跨文件 → 新建轻量 change (proposal+tasks 为主)
+  - Level 3 (设计缺陷)：需要改代码 → 完整 change 工作流
+  归档不可变原则：已归档 change 永不修改，修复走新 change 或直接改 main spec。
+
+  Commit 规范：
+  - fix(spec): <内容>         — Level 1 直接修正
+  - docs: sync specs with ... — Level 2 change 归档
+  - feat: add <cap> spec      — 新功能 spec
+
+rules:
+  proposal:
+    - 明确标注 Capabilities 中哪些是 New、哪些是 Modified
+    - Impact 中必须列出新增依赖和受影响文件
+  specs:
+    - 每个 requirement 至少一个 scenario（WHEN/THEN 格式）
+    - 使用 SHALL/MUST 表达规范性要求
+    - MODIFIED 时必须包含完整的更新后内容（不能只写 diff）
+  design:
+    - 每个 Decision 必须包含替代方案和选择理由
+    - Risks 使用 [风险] → 缓解措施 格式
+  tasks:
+    - 任务粒度：单个 session 可完成
+    - 必须包含验证步骤（测试/typecheck/build）
