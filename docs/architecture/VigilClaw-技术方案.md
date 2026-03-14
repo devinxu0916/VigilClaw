@@ -675,19 +675,19 @@
 
 ### C. MVP 依赖预算
 
-| 类别     | 依赖                 | 用途         | 大小                 |
-| -------- | -------------------- | ------------ | -------------------- |
-| 运行时   | better-sqlite3       | SQLite 驱动  | ~2MB (native)        |
-| 运行时   | sqlite-vec           | 向量搜索     | ~1MB (native)        |
-| 运行时   | @xenova/transformers | 本地嵌入     | ~500KB (+80MB model) |
-| 运行时   | @anthropic-ai/sdk    | Claude API   | ~200KB               |
-| 运行时   | grammy               | Telegram Bot | ~300KB               |
-| 运行时   | dockerode            | Docker API   | ~150KB               |
-| 运行时   | pino                 | 日志         | ~200KB               |
-| 运行时   | zod                  | Schema 校验  | ~60KB                |
-| 运行时   | cron-parser          | Cron 表达式  | ~30KB                |
-| 安全     | 内置 crypto          | AES-256-GCM  | 0 (Node.js 内置)     |
-| **总计** | **~9 个生产依赖**    |              |                      |
+| 类别     | 依赖                      | 用途         | 大小                 |
+| -------- | ------------------------- | ------------ | -------------------- |
+| 运行时   | better-sqlite3            | SQLite 驱动  | ~2MB (native)        |
+| 运行时   | sqlite-vec                | 向量搜索     | ~1MB (native)        |
+| 运行时   | @huggingface/transformers | 本地嵌入     | ~500KB (+80MB model) |
+| 运行时   | @anthropic-ai/sdk         | Claude API   | ~200KB               |
+| 运行时   | grammy                    | Telegram Bot | ~300KB               |
+| 运行时   | dockerode                 | Docker API   | ~150KB               |
+| 运行时   | pino                      | 日志         | ~200KB               |
+| 运行时   | zod                       | Schema 校验  | ~60KB                |
+| 运行时   | cron-parser               | Cron 表达式  | ~30KB                |
+| 安全     | 内置 crypto               | AES-256-GCM  | 0 (Node.js 内置)     |
+| **总计** | **~9 个生产依赖**         |              |                      |
 
 > **注**：`uuid` 已移除，使用 `crypto.randomUUID()` 替代。
 

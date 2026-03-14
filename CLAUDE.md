@@ -41,11 +41,11 @@ IChannel (消息渠道) → Router (路由+命令) → CostGuard (预算) → Gr
 
 ### 三大扩展点（接口抽象）
 
-| 接口 | 位置 | 职责 | 内置实现 |
-|------|------|------|----------|
-| `IChannel` | `src/channels/types.ts` | 消息渠道 | Telegram (grammY) |
-| `IProvider` | `src/provider/types.ts` | LLM 调用 | Claude (@anthropic-ai/sdk) |
-| `ITool` | `src/provider/types.ts` | Agent 工具 | Bash/Read/Write/Edit |
+| 接口        | 位置                    | 职责       | 内置实现                   |
+| ----------- | ----------------------- | ---------- | -------------------------- |
+| `IChannel`  | `src/channels/types.ts` | 消息渠道   | Telegram (grammY)          |
+| `IProvider` | `src/provider/types.ts` | LLM 调用   | Claude (@anthropic-ai/sdk) |
+| `ITool`     | `src/provider/types.ts` | Agent 工具 | Bash/Read/Write/Edit       |
 
 新增渠道/Provider/工具：实现对应接口并在 `src/index.ts` 中注册。
 
@@ -88,6 +88,7 @@ SQLite（better-sqlite3），零外部数据库依赖。自动清理：消息 90
 ## 关键配置
 
 必填环境变量：
+
 - `VIGILCLAW_MASTER_KEY` — 64 位十六进制（32 字节），不设则自动生成到 `~/.config/vigilclaw/master.key`
 - `VIGILCLAW_TELEGRAM_BOT_TOKEN` — Telegram Bot Token
 - `ANTHROPIC_API_KEY` 或 `ANTHROPIC_AUTH_TOKEN` — LLM API Key
@@ -100,4 +101,4 @@ SQLite（better-sqlite3），零外部数据库依赖。自动清理：消息 90
 
 ## 依赖策略
 
-生产依赖 9 个（含 sqlite-vec 和 @xenova/transformers），保持精简。`scripts/check-deps.sh` 限制最多 50 个生产依赖。
+生产依赖 9 个（含 sqlite-vec 和 @huggingface/transformers），保持精简。`scripts/check-deps.sh` 限制最多 50 个生产依赖。

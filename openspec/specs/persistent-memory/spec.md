@@ -2,7 +2,7 @@
 
 ### Requirement: Local embedding generation
 
-The system SHALL generate text embeddings locally using `@xenova/transformers` with the `Xenova/all-MiniLM-L6-v2` model (384 dimensions), without any external API calls.
+The system SHALL generate text embeddings locally using `@huggingface/transformers` with the `Xenova/all-MiniLM-L6-v2` model (384 dimensions), without any external API calls.
 
 #### Scenario: Generate embedding for a text
 
@@ -58,12 +58,12 @@ The system SHALL store memory embeddings in a `vec_memories` virtual table (sqli
 
 ### Requirement: Semantic memory recall
 
-The system SHALL recall relevant memories by computing cosine similarity between the user's latest message embedding and stored memory embeddings, returning memories above a similarity threshold.
+The system SHALL recall relevant memories by computing cosine similarity between the user's latest message embedding and stored memory embeddings, returning memories above a similarity threshold. The cosine similarity SHALL be computed from the L2 (Euclidean) distance returned by sqlite-vec using the formula: `similarity = 1 - (distance² / 2)`, where distance is the L2 distance between normalized embedding vectors.
 
 #### Scenario: Relevant memories found
 
 - **WHEN** user asks "How should I set up my TypeScript project?" and a stored memory says "User prefers strict TypeScript with Vitest"
-- **THEN** the system SHALL return that memory if similarity exceeds the threshold (default 0.7)
+- **THEN** the system SHALL return that memory if similarity exceeds the threshold (default 0.3)
 
 #### Scenario: No relevant memories
 
@@ -77,7 +77,7 @@ The system SHALL recall relevant memories by computing cosine similarity between
 
 ### Requirement: Memory injection into context
 
-Recalled memories SHALL be injected as a system message in the context, after any compression summary and before the conversation messages.
+Recalled memories SHALL be injected as a system-role message in the context array returned by `getContext()`, after any compression summary and before the conversation messages. The provider layer SHALL then extract all system-role messages and merge them into the LLM's `system` parameter (not pass them as message objects in the messages array, as Claude API does not support system role in the messages array).
 
 #### Scenario: Memories injected with summary
 
@@ -113,7 +113,7 @@ Each user's memories SHALL be isolated — a user's memories SHALL NOT appear in
 The system SHALL support the following configuration fields under a new `memory` config section:
 
 - `enabled` (boolean, default true): enable/disable persistent memory
-- `similarityThreshold` (number, default 0.7): minimum similarity for recall
+- `similarityThreshold` (number, default 0.3): minimum similarity for recall
 - `maxRecallCount` (number, default 5): maximum memories to inject
 - `embeddingModel` (string, default 'Xenova/all-MiniLM-L6-v2'): local embedding model
 
