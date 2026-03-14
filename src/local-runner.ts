@@ -18,6 +18,12 @@ export class LocalRunner {
   async runTask(task: QueuedTask): Promise<TaskResult> {
     const client = this.createClient();
 
+    const systemMessages = task.messages.filter((m) => m.role === 'system').map((m) => m.content);
+    const systemPrompt =
+      systemMessages.length > 0
+        ? SYSTEM_PROMPT + '\n\n' + systemMessages.join('\n\n')
+        : SYSTEM_PROMPT;
+
     const messages: Anthropic.MessageParam[] = task.messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
@@ -29,7 +35,7 @@ export class LocalRunner {
       const response = await client.messages.create({
         model: task.model,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages,
       });
 

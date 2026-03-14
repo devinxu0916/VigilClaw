@@ -111,7 +111,7 @@ export class MemoryStore {
 
       const memories: string[] = [];
       for (const { rowid, distance } of results) {
-        const similarity = 1 - distance / 2;
+        const similarity = 1 - (distance * distance) / 2;
         if (similarity < this.config.similarityThreshold) continue;
 
         const memory = this.db.getMemoryById(rowid);

@@ -30,7 +30,7 @@ export class Embedder {
     if (loadFailed) throw new Error('Embedding model previously failed to load');
 
     try {
-      const { pipeline } = await import('@xenova/transformers');
+      const { pipeline } = await import('@huggingface/transformers');
       pipelineInstance = (await pipeline(
         'feature-extraction',
         this.modelName,

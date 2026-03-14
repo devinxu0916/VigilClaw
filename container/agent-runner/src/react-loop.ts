@@ -31,6 +31,14 @@ export async function reactLoop(taskInput: TaskInput): Promise<TaskResult> {
   const client = createClient();
   const tools = createTools(taskInput.tools);
 
+  const injectedSystem = taskInput.messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content);
+  const systemPrompt =
+    injectedSystem.length > 0
+      ? SYSTEM_PROMPT + '\n\n' + injectedSystem.join('\n\n')
+      : SYSTEM_PROMPT;
+
   const messages: Anthropic.MessageParam[] = taskInput.messages
     .filter((m) => m.role !== 'system')
     .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
@@ -48,7 +56,7 @@ export async function reactLoop(taskInput: TaskInput): Promise<TaskResult> {
     const response = await client.messages.create({
       model: taskInput.model,
       max_tokens: taskInput.maxTokens,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages,
       ...(toolDefs.length > 0 ? { tools: toolDefs } : {}),
     });

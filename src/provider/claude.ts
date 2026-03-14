@@ -26,10 +26,11 @@ export class ClaudeProvider implements IProvider {
   }
 
   async chat(params: ChatParams): Promise<ChatResponse> {
+    const systemPrompt = this.buildSystemPrompt(params);
     const response = await this.client.messages.create({
       model: params.model,
       max_tokens: params.maxTokens ?? 4096,
-      ...(params.system ? { system: params.system } : {}),
+      ...(systemPrompt ? { system: systemPrompt } : {}),
       messages: this.toAnthropicMessages(params.messages),
       ...(params.tools && params.tools.length > 0
         ? { tools: params.tools as Anthropic.Tool[] }
@@ -49,10 +50,11 @@ export class ClaudeProvider implements IProvider {
   }
 
   async *stream(params: ChatParams): AsyncGenerator<ChatChunk> {
+    const systemPrompt = this.buildSystemPrompt(params);
     const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens ?? 4096,
-      ...(params.system ? { system: params.system } : {}),
+      ...(systemPrompt ? { system: systemPrompt } : {}),
       messages: this.toAnthropicMessages(params.messages),
       ...(params.tools && params.tools.length > 0
         ? { tools: params.tools as Anthropic.Tool[] }
@@ -101,6 +103,17 @@ export class ClaudeProvider implements IProvider {
         role: m.role as 'user' | 'assistant',
         content: m.content,
       }));
+  }
+
+  private buildSystemPrompt(params: ChatParams): string | undefined {
+    const injected = params.messages.filter((m) => m.role === 'system').map((m) => m.content);
+    if (params.system && injected.length > 0) {
+      return params.system + '\n\n' + injected.join('\n\n');
+    }
+    if (injected.length > 0) {
+      return injected.join('\n\n');
+    }
+    return params.system;
   }
 }
 

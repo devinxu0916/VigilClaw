@@ -14,7 +14,7 @@
   - 降级逻辑：摘要 API 失败时回退到简单截断
 - **Phase 2: 持久化记忆** (`src/memory-store.ts` + `src/embedder.ts`)
   - 基于 sqlite-vec 的向量相似度搜索，跨会话记忆召回
-  - 本地嵌入生成：`@xenova/transformers` + `all-MiniLM-L6-v2` (384 维)，零 API 成本
+  - 本地嵌入生成：`@huggingface/transformers` + `all-MiniLM-L6-v2` (384 维)，零 API 成本
   - 对话结束后用 Haiku 模型异步提取值得记忆的事实
   - 新对话开始时按语义相似度召回相关记忆注入上下文
   - 用户/群组级别记忆隔离
@@ -22,8 +22,8 @@
 - 数据库迁移 v2：新增 `context_summaries`、`memories` 表 + `vec_memories` 虚拟表
 - 配置扩展：`session.maxContextTokens`、`session.recentMessagesKeep`、`memory.*` 配置项
 - 环境变量：`VIGILCLAW_MAX_CONTEXT_TOKENS`、`VIGILCLAW_RECENT_MESSAGES_KEEP`、`VIGILCLAW_MEMORY_ENABLED`
-- 新增依赖：`sqlite-vec` (向量搜索扩展)、`@xenova/transformers` (本地嵌入)
-- 单元测试：21 个新增测试（context-compressor 10 + memory-store 11），总计 73 tests
+- 新增依赖：`sqlite-vec` (向量搜索扩展)、`@huggingface/transformers` (本地嵌入)
+- 单元测试：23 个新增测试（context-compressor 11 + memory-store 12），总计 75 tests
 
 ### Changed
 
@@ -32,8 +32,21 @@
 - `src/session-manager.ts`：默认 contextLength 从 20 改为 50（给压缩器更多原始消息）
 - `src/db.ts`：加载 sqlite-vec 扩展（带降级），新增 `vecAvailable` 标志
 - `src/db.ts`：`cleanupOldData()` 新增清理过期记忆数据
+- `src/db.ts`：使用 `createRequire` 加载 sqlite-vec（兼容 ESM 运行环境）
 - `src/index.ts`：初始化链新增 Embedder、ContextCompressor、MemoryStore 模块
 - `src/index.ts`：任务完成后异步触发记忆提取
+- `src/provider/claude.ts`：`buildSystemPrompt()` 自动提取 messages 中的 system 消息合并到 system prompt（支持摘要/记忆注入）
+- `src/local-runner.ts`：同上，从 task.messages 中提取 system 消息合并到 system prompt
+- `container/agent-runner/src/react-loop.ts`：同上，从 taskInput.messages 中提取 system 消息合并到 system prompt
+
+### Fixed
+
+- 摘要和记忆提取的 Haiku API 调用成本未被追踪 — 现在记录到 `api_calls` 表，`/cost` 命令可见
+- system role 消息（摘要/记忆）被 Claude provider 和 runner 过滤掉，LLM 完全看不到注入的上下文 — 现在自动合并到 system prompt
+- sqlite-vec 在 ESM（tsx）运行环境下 `require` 不可用 — 改用 `createRequire(import.meta.url)`
+- `@xenova/transformers` 间接依赖 sharp 导致本地嵌入模型加载失败 — 迁移到 `@huggingface/transformers`（无 sharp 依赖）
+- 记忆召回 similarity 计算公式错误（L2 距离误用为余弦距离）— 修正为 `1 - (distance² / 2)`
+- 默认 similarity 阈值 0.7 对 all-MiniLM-L6-v2 模型过高 — 调整为 0.3
 
 ### Added
 

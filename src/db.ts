@@ -1,8 +1,11 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import type { CostReport } from './types.js';
 import { logger } from './logger.js';
+
+const require = createRequire(import.meta.url);
 
 const SCHEMA_V1 = `
 CREATE TABLE users (
@@ -180,8 +183,7 @@ function initRawDatabase(dbPath: string): { db: Database.Database; vecAvailable:
   // Load sqlite-vec extension (graceful degradation)
   let vecAvailable = false;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const sqliteVec = require('sqlite-vec');
+    const sqliteVec = require('sqlite-vec') as { load: (db: Database.Database) => void };
     sqliteVec.load(db);
     vecAvailable = true;
   } catch {

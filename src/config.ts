@@ -48,7 +48,7 @@ export const SessionConfigSchema = z.object({
 
 export const MemoryConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  similarityThreshold: z.number().min(0).max(1).default(0.7),
+  similarityThreshold: z.number().min(0).max(1).default(0.3),
   maxRecallCount: z.number().default(5),
   embeddingModel: z.string().default('Xenova/all-MiniLM-L6-v2'),
 });

@@ -2,6 +2,7 @@ import type { VigilClawDB } from './db.js';
 import type { ContextCompressor } from './context-compressor.js';
 import type { MemoryStore } from './memory-store.js';
 import type { Message } from './types.js';
+import { logger } from './logger.js';
 
 export class SessionManager {
   private compressor: ContextCompressor | null = null;
@@ -28,14 +29,29 @@ export class SessionManager {
       content: r.content,
     }));
 
+    logger.info(
+      {
+        hasCompressor: !!this.compressor,
+        hasMemoryStore: !!this.memoryStore,
+        msgCount: messages.length,
+      },
+      'getContext state',
+    );
+
     if (this.compressor) {
       messages = await this.compressor.compress(sessionKey, messages, userId, groupId);
     }
 
     if (this.memoryStore && messages.length > 0) {
       const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+      logger.debug(
+        { hasMemoryStore: true, msgCount: messages.length, hasLastUser: !!lastUserMsg },
+        'Memory recall check',
+      );
       if (lastUserMsg) {
         const memories = await this.memoryStore.recall(userId, groupId, lastUserMsg.content);
+        logger.debug({ memoriesFound: memories.length }, 'Memory recall result');
+
         if (memories.length > 0) {
           const memoryMsg: Message = {
             role: 'system',
