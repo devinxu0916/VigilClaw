@@ -6,7 +6,16 @@
 
 ### Added
 
-- **Phase 2: 多模型支持** — OpenAI + Ollama Provider
+- **Phase 2: Skill 系统** — 用户可扩展 Agent 工具能力
+  - `src/skill-types.ts`：SkillManifest/SkillInfo/SkillPermission 类型定义
+  - `src/skill-registry.ts`：Skill 注册表（安装/卸载/启用/禁用/版本管理/冲突检测）
+  - `src/skill-permissions.ts`：声明式权限校验 + 审计日志
+  - 容器集成：Skill 代码通过只读卷挂载到 `/skills/`，容器内 `loadSkillTools()` 动态加载
+  - Telegram /skill 命令：list/install/remove/enable/disable/info（admin 限制）
+  - IPC 扩展：TaskInput.skills 字段携带 Skill 定义和代码路径
+  - DB 迁移 v3：`skills` 表
+  - 示例 Skill：`examples/skills/web-search/`（stub 实现）
+  - 调研文档：`docs/research/AI-Agent-Skill系统调研.md`（803 行，5 个方案 + 4 种沙箱）
   - `src/provider/openai.ts`：OpenAIProvider（GPT-4o / GPT-4o-mini / o4-mini），完整工具格式双向转换（Anthropic ↔ OpenAI）
   - `src/provider/ollama.ts`：OllamaProvider，复用 openai SDK 的 OpenAI 兼容 API（`baseURL: localhost:11434/v1`），成本 $0
   - `src/provider/factory.ts`：Provider 工厂 + `provider:model` 标识格式解析 + `getCheapModel()` 辅助

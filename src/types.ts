@@ -28,6 +28,20 @@ export interface QueuedTask {
   provider: string;
   model: string;
   tools: string[];
+  skills?: Array<{
+    name: string;
+    version: string;
+    tools: Array<{
+      name: string;
+      description: string;
+      input_schema: {
+        type: 'object';
+        properties: Record<string, { type: string; description: string; enum?: string[] }>;
+        required?: string[];
+      };
+    }>;
+    codePath: string;
+  }>;
   workspaceDir?: string;
   createdAt: Date;
   replyFn: (text: string) => Promise<void>;
@@ -46,6 +60,20 @@ export interface TaskInput {
   model: string;
   maxTokens: number;
   tools: string[];
+  skills?: Array<{
+    name: string;
+    version: string;
+    tools: Array<{
+      name: string;
+      description: string;
+      input_schema: {
+        type: 'object';
+        properties: Record<string, { type: string; description: string; enum?: string[] }>;
+        required?: string[];
+      };
+    }>;
+    codePath: string;
+  }>;
 }
 
 export interface TaskResult {

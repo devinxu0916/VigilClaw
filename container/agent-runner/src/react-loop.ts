@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import type { TaskInput, TaskResult, Tool } from './types.js';
-import { createTools } from './tools/index.js';
+import { createTools, loadSkillTools } from './tools/index.js';
 
 const MAX_TURNS = 30;
 
@@ -49,9 +49,15 @@ export async function reactLoop(taskInput: TaskInput): Promise<TaskResult> {
   return reactLoopAnthropic(taskInput);
 }
 
+function getAllTools(taskInput: TaskInput): Tool[] {
+  const builtIn = createTools(taskInput.tools);
+  const skills = taskInput.skills ? loadSkillTools(taskInput.skills) : [];
+  return [...builtIn, ...skills];
+}
+
 async function reactLoopAnthropic(taskInput: TaskInput): Promise<TaskResult> {
   const client = createAnthropicClient();
-  const tools = createTools(taskInput.tools);
+  const tools = getAllTools(taskInput);
   const systemPrompt = buildSystemPrompt(taskInput.messages);
 
   const messages: Anthropic.MessageParam[] = taskInput.messages
@@ -144,7 +150,7 @@ async function reactLoopAnthropic(taskInput: TaskInput): Promise<TaskResult> {
 
 async function reactLoopOpenAI(taskInput: TaskInput): Promise<TaskResult> {
   const client = createOpenAIClient();
-  const tools = createTools(taskInput.tools);
+  const tools = getAllTools(taskInput);
   const systemPrompt = buildSystemPrompt(taskInput.messages);
 
   const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = tools.map((t) => ({

@@ -1,0 +1,27 @@
+{
+  "name": "web-search",
+  "version": "1.0.0",
+  "description": "Search the web using DuckDuckGo (stub implementation for demo)",
+  "author": "vigilclaw",
+  "permissions": ["network"],
+  "tools": [
+    {
+      "name": "web_search",
+      "description": "Search the web for information. Returns search results for the given query.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of results (default: 5)"
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}

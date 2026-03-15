@@ -1,5 +1,6 @@
 import Docker from 'dockerode';
 import path from 'node:path';
+import fs from 'node:fs';
 import pino from 'pino';
 import type { DockerConfig } from './config.js';
 import type { CredentialProxy } from './credential-proxy.js';
@@ -44,6 +45,7 @@ export class ContainerRunner {
       model: task.model,
       maxTokens: 4096,
       tools: task.tools,
+      skills: task.skills,
     });
 
     const containerName = `vigilclaw-${task.id.slice(0, 12)}`;
@@ -52,6 +54,13 @@ export class ContainerRunner {
     if (task.workspaceDir) {
       validateMountPath(task.workspaceDir);
       binds.push(`${task.workspaceDir}:/workspace:rw`);
+    }
+
+    if (task.skills && task.skills.length > 0) {
+      const skillsDir = path.join(process.env.HOME ?? '~', '.config', 'vigilclaw', 'skills');
+      if (fs.existsSync(skillsDir)) {
+        binds.push(`${skillsDir}:/skills:ro`);
+      }
     }
 
     let container: Docker.Container | undefined;

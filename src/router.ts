@@ -6,6 +6,7 @@ import type { CostGuard } from './cost-guard.js';
 import type { SessionManager } from './session-manager.js';
 import type { GroupQueue } from './group-queue.js';
 import type { RateLimiter } from './rate-limiter.js';
+import type { SkillRegistry } from './skill-registry.js';
 import type { RoutingConfig } from './config.js';
 import type { IChannel } from './channels/types.js';
 import type { IncomingMessage, CostReport } from './types.js';
@@ -17,6 +18,7 @@ export class Router {
   private masterKey: Buffer | null = null;
   private adminUsers: Set<string> = new Set();
   private routingConfig: RoutingConfig = { enabled: false, simpleThresholdChars: 500 };
+  private skillRegistry: SkillRegistry | null = null;
 
   constructor(
     private db: VigilClawDB,
@@ -37,6 +39,10 @@ export class Router {
 
   setRoutingConfig(config: RoutingConfig): void {
     this.routingConfig = config;
+  }
+
+  setSkillRegistry(registry: SkillRegistry): void {
+    this.skillRegistry = registry;
   }
 
   private isAdmin(userId: string): boolean {
@@ -93,6 +99,8 @@ export class Router {
       await this.reply(msg, text);
     };
 
+    const enabledSkills = this.skillRegistry?.getEnabledSkillInfos() ?? [];
+
     this.groupQueue.enqueue({
       id: taskId,
       userId: msg.userId,
@@ -101,6 +109,7 @@ export class Router {
       provider,
       model,
       tools: ['bash', 'read', 'write', 'edit'],
+      skills: enabledSkills.length > 0 ? enabledSkills : undefined,
       createdAt: new Date(),
       replyFn,
     });
@@ -126,6 +135,9 @@ export class Router {
         break;
       case '/setkey':
         await this.handleSetKeyCommand(msg, args);
+        break;
+      case '/skill':
+        await this.handleSkillCommand(msg, args);
         break;
       case '/help':
         await this.reply(msg, this.helpText());
@@ -261,14 +273,132 @@ export class Router {
     await this.reply(msg, `✅ \`${keyName}\` 已加密存储 (${displayValue})。无需重启。`);
   }
 
+  private async handleSkillCommand(msg: IncomingMessage, args: string[]): Promise<void> {
+    if (!this.skillRegistry) {
+      await this.reply(msg, '❌ Skill 系统未启用。');
+      return;
+    }
+
+    const subCmd = args[0]?.toLowerCase();
+
+    if (!subCmd || subCmd === 'list') {
+      const skills = this.skillRegistry.listSkills();
+      if (skills.length === 0) {
+        await this.reply(msg, '📋 没有已安装的 Skill。\n使用 `/skill install <路径>` 安装。');
+        return;
+      }
+      const lines = skills.map(
+        (s) =>
+          `${s.enabled ? '✅' : '⏸️'} **${s.name}** v${s.version}${s.description ? ` — ${s.description}` : ''}`,
+      );
+      await this.reply(msg, `📋 **已安装 Skill**\n\n${lines.join('\n')}`);
+      return;
+    }
+
+    if (subCmd === 'install') {
+      if (!this.isAdmin(msg.userId)) {
+        await this.reply(msg, '⛔ 仅管理员可安装 Skill。');
+        return;
+      }
+      const sourcePath = args[1];
+      if (!sourcePath) {
+        await this.reply(msg, '❌ 用法: `/skill install <本地路径>`');
+        return;
+      }
+      const result = this.skillRegistry.installSkill(sourcePath, msg.userId);
+      if (result.success) {
+        await this.reply(msg, `✅ Skill 已安装。重启后生效。`);
+      } else {
+        await this.reply(msg, `❌ 安装失败: ${result.error ?? '未知错误'}`);
+      }
+      return;
+    }
+
+    if (subCmd === 'remove') {
+      if (!this.isAdmin(msg.userId)) {
+        await this.reply(msg, '⛔ 仅管理员可卸载 Skill。');
+        return;
+      }
+      const name = args[1];
+      if (!name) {
+        await this.reply(msg, '❌ 用法: `/skill remove <名称>`');
+        return;
+      }
+      const result = this.skillRegistry.removeSkill(name);
+      if (result.success) {
+        await this.reply(msg, `✅ Skill "${name}" 已卸载。`);
+      } else {
+        await this.reply(msg, `❌ ${result.error ?? '未知错误'}`);
+      }
+      return;
+    }
+
+    if (subCmd === 'enable' || subCmd === 'disable') {
+      if (!this.isAdmin(msg.userId)) {
+        await this.reply(msg, '⛔ 仅管理员可管理 Skill。');
+        return;
+      }
+      const name = args[1];
+      if (!name) {
+        await this.reply(msg, `❌ 用法: \`/skill ${subCmd} <名称>\``);
+        return;
+      }
+      const result =
+        subCmd === 'enable'
+          ? this.skillRegistry.enableSkill(name)
+          : this.skillRegistry.disableSkill(name);
+      if (result.success) {
+        await this.reply(msg, `✅ Skill "${name}" 已${subCmd === 'enable' ? '启用' : '禁用'}。`);
+      } else {
+        await this.reply(msg, `❌ ${result.error ?? '未知错误'}`);
+      }
+      return;
+    }
+
+    if (subCmd === 'info') {
+      const name = args[1];
+      if (!name) {
+        await this.reply(msg, '❌ 用法: `/skill info <名称>`');
+        return;
+      }
+      const info = this.skillRegistry.getSkillInfo(name);
+      if (!info) {
+        await this.reply(msg, `❌ Skill "${name}" 不存在。`);
+        return;
+      }
+      const lines = [
+        `📦 **${info.manifest.name}** v${info.manifest.version}`,
+        `描述: ${info.manifest.description}`,
+        `作者: ${info.manifest.author ?? '未知'}`,
+        `状态: ${info.enabled ? '✅ 已启用' : '⏸️ 已禁用'}`,
+        `安装时间: ${info.installedAt}`,
+        `权限: ${info.manifest.permissions.join(', ') || '无'}`,
+        `工具: ${info.manifest.tools.map((t) => t.name).join(', ')}`,
+      ];
+      await this.reply(msg, lines.join('\n'));
+      return;
+    }
+
+    await this.reply(
+      msg,
+      '❌ 未知子命令。\n用法: `/skill list|install|remove|enable|disable|info`',
+    );
+  }
+
   private helpText(): string {
     return [
       '🐾 **VigilClaw Commands**',
       '',
       '/cost — 查看费用报告',
-      '/model [name] — 查看/切换模型 (sonnet, haiku, opus)',
+      '/model [name] — 查看/切换模型 (sonnet, haiku, gpt4o, llama3)',
+      '/model list — 列出所有可用模型',
       '/budget [day] [month] — 查看/设置预算',
       '/setkey <name> <value> — 设置凭证 (管理员)',
+      '/skill list — 查看已安装 Skill',
+      '/skill install <路径> — 安装 Skill (管理员)',
+      '/skill remove <名称> — 卸载 Skill (管理员)',
+      '/skill enable|disable <名称> — 启用/禁用 Skill',
+      '/skill info <名称> — 查看 Skill 详情',
       '/clear — 清空对话上下文',
       '/help — 显示帮助信息',
     ].join('\n');

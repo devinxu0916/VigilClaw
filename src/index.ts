@@ -8,6 +8,7 @@ import { SecurityLogger } from './security-logger.js';
 import { ContainerRunner } from './container-runner.js';
 import { LocalRunner } from './local-runner.js';
 import { GroupQueue } from './group-queue.js';
+import { SkillRegistry } from './skill-registry.js';
 import { TaskScheduler } from './task-scheduler.js';
 import { RateLimiter } from './rate-limiter.js';
 import { Router } from './router.js';
@@ -143,6 +144,9 @@ async function main(): Promise<void> {
 
   router.setMasterKey(masterKey);
   router.setRoutingConfig(config.routing);
+
+  const skillRegistry = new SkillRegistry(db);
+  router.setSkillRegistry(skillRegistry);
   if (config.telegram.allowedUsers.length > 0) {
     router.setAdminUsers(config.telegram.allowedUsers.map((id) => `telegram:${id}`));
   }
