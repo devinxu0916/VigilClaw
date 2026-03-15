@@ -44,5 +44,5 @@
 - [x] 6.2 类型检查通过：`pnpm typecheck`
 - [x] 6.3 构建通过：`pnpm build`
 - [x] 6.4 容器镜像重建：`pnpm docker:build`
-- [ ] 6.5 E2E 验证：Claude / OpenAI / Ollama 三种 Provider 分别测试基础对话和工具调用
+- [x] 6.5 E2E 验证：Claude / OpenAI / Ollama 三种 Provider 分别测试基础对话和工具调用
 - [x] 6.6 更新 ROADMAP.md 和 CHANGELOG.md
