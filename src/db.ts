@@ -149,6 +149,22 @@ CREATE INDEX idx_memories_scope ON memories(scope_key, created_at DESC);
 CREATE INDEX idx_memories_user  ON memories(user_id, created_at DESC);
 `,
   },
+  {
+    version: 3,
+    description: 'Skill system',
+    up: `
+CREATE TABLE skills (
+  name          TEXT PRIMARY KEY,
+  version       TEXT NOT NULL,
+  description   TEXT,
+  manifest      TEXT NOT NULL,
+  code_path     TEXT NOT NULL,
+  enabled       INTEGER NOT NULL DEFAULT 1,
+  installed_by  TEXT NOT NULL,
+  installed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`,
+  },
 ];
 
 function runMigrations(db: Database.Database): void {
@@ -319,6 +335,17 @@ export class VigilClawDB {
       `),
       getMemoriesByScope: this.db.prepare(`
         SELECT id, content FROM memories WHERE scope_key = ? ORDER BY created_at DESC
+      `),
+      insertSkill: this.db.prepare(`
+        INSERT INTO skills (name, version, description, manifest, code_path, enabled, installed_by)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+      `),
+      getSkill: this.db.prepare(`SELECT * FROM skills WHERE name = ?`),
+      listSkills: this.db.prepare(`SELECT * FROM skills ORDER BY installed_at DESC`),
+      deleteSkill: this.db.prepare(`DELETE FROM skills WHERE name = ?`),
+      updateSkillEnabled: this.db.prepare(`UPDATE skills SET enabled = ? WHERE name = ?`),
+      updateSkill: this.db.prepare(`
+        UPDATE skills SET version = ?, manifest = ?, code_path = ? WHERE name = ?
       `),
     };
   }
@@ -530,6 +557,76 @@ export class VigilClawDB {
       id: number;
       content: string;
     }>;
+  }
+
+  insertSkill(skill: {
+    name: string;
+    version: string;
+    description?: string;
+    manifest: string;
+    codePath: string;
+    installedBy: string;
+  }): void {
+    this.stmts.insertSkill.run(
+      skill.name,
+      skill.version,
+      skill.description ?? null,
+      skill.manifest,
+      skill.codePath,
+      skill.installedBy,
+    );
+  }
+
+  getSkill(name: string): {
+    name: string;
+    version: string;
+    description: string | null;
+    manifest: string;
+    code_path: string;
+    enabled: number;
+    installed_by: string;
+    installed_at: string;
+  } | null {
+    const row = this.stmts.getSkill.get(name) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return row as {
+      name: string;
+      version: string;
+      description: string | null;
+      manifest: string;
+      code_path: string;
+      enabled: number;
+      installed_by: string;
+      installed_at: string;
+    };
+  }
+
+  listSkills(): Array<{
+    name: string;
+    version: string;
+    description: string | null;
+    enabled: number;
+    installed_at: string;
+  }> {
+    return this.stmts.listSkills.all() as Array<{
+      name: string;
+      version: string;
+      description: string | null;
+      enabled: number;
+      installed_at: string;
+    }>;
+  }
+
+  deleteSkill(name: string): void {
+    this.stmts.deleteSkill.run(name);
+  }
+
+  setSkillEnabled(name: string, enabled: boolean): void {
+    this.stmts.updateSkillEnabled.run(enabled ? 1 : 0, name);
+  }
+
+  updateSkill(name: string, version: string, manifest: string, codePath: string): void {
+    this.stmts.updateSkill.run(version, manifest, codePath, name);
   }
 
   getCostReport(userId: string): CostReport {
