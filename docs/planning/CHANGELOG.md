@@ -6,6 +6,28 @@
 
 ### Added
 
+- **Phase 2: 多模型支持** — OpenAI + Ollama Provider
+  - `src/provider/openai.ts`：OpenAIProvider（GPT-4o / GPT-4o-mini / o4-mini），完整工具格式双向转换（Anthropic ↔ OpenAI）
+  - `src/provider/ollama.ts`：OllamaProvider，复用 openai SDK 的 OpenAI 兼容 API（`baseURL: localhost:11434/v1`），成本 $0
+  - `src/provider/factory.ts`：Provider 工厂 + `provider:model` 标识格式解析 + `getCheapModel()` 辅助
+  - `src/model-router.ts`：基于消息长度/代码块的 simple/complex 任务分级路由
+  - `/model` 命令支持 `provider:model` 格式（如 `openai:gpt-4o`、`ollama:llama3`），新增别名和 `/model list`
+  - 模型选择持久化到数据库（`db.updateUserModel()`）
+  - 容器内 react-loop 支持 Anthropic + OpenAI 双 SDK 分支
+  - 新增依赖：`openai` SDK（同时覆盖 OpenAI 和 Ollama）
+  - 新增配置段：`provider.openai`、`provider.ollama`、`routing.*`
+  - 94 tests passing（新增 19 个测试：openai-provider 6 + ollama-provider 5 + model-router 8）
+
+### Changed
+
+- `src/local-runner.ts`：从硬编码 Anthropic SDK 重构为通过 Provider 工厂动态实例化
+- `src/index.ts`：cost recording 使用实际 provider 而非硬编码 `'anthropic'`
+- `src/context-compressor.ts`：接收 `IProvider` 而非 `ClaudeProvider`，使用 `provider.estimateCost()`
+- `src/memory-store.ts`：同上，provider 抽象化
+- `src/types.ts`：`QueuedTask` 和 `TaskInput` 新增 `provider` 字段
+- `src/router.ts`：集成 ModelRouter，`/model` 命令扩展
+- `container/agent-runner/src/react-loop.ts`：支持 OpenAI + Anthropic 双 SDK
+
 - **Phase 2: 上下文压缩** (`src/context-compressor.ts`)
   - 基于 token 预算的智能上下文压缩（默认 6000 tokens 触发）
   - 增量摘要策略：旧消息用 Haiku 模型生成滚动摘要，保留最近 6 条完整消息

@@ -25,6 +25,7 @@ export interface QueuedTask {
   userId: string;
   groupId?: string;
   messages: Message[];
+  provider: string;
   model: string;
   tools: string[];
   workspaceDir?: string;
@@ -41,6 +42,7 @@ export interface TaskInput {
   userId: string;
   groupId?: string;
   messages: Message[];
+  provider: string;
   model: string;
   maxTokens: number;
   tools: string[];

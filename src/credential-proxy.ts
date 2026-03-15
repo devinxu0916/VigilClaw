@@ -7,10 +7,12 @@ import { decrypt } from './crypto.js';
 
 const logger = pino({ name: 'credential-proxy' });
 
-const ALLOWED_PATHS = ['/v1/messages', '/v1/complete'];
+const ALLOWED_PATHS = ['/v1/messages', '/v1/complete', '/v1/chat/completions', '/chat/completions'];
 
 const DEFAULT_PROVIDER_HOSTS: Record<string, string> = {
   anthropic: 'https://api.anthropic.com',
+  claude: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com/v1',
 };
 
 export class CredentialProxy {
@@ -100,12 +102,16 @@ export class CredentialProxy {
 
     const headers: Record<string, string> = {
       host: targetUrl.hostname,
-      'x-api-key': apiKey,
-      authorization: `Bearer ${apiKey}`,
       'content-type': req.headers['content-type'] ?? 'application/json',
       'content-length': body.length.toString(),
-      'anthropic-version': '2023-06-01',
     };
+
+    if (provider === 'claude' || provider === 'anthropic') {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    } else {
+      headers['authorization'] = `Bearer ${apiKey}`;
+    }
 
     if (req.headers['accept']) {
       headers['accept'] = req.headers['accept'] as string;
@@ -145,17 +151,24 @@ export class CredentialProxy {
     return decrypt(cred.keyEncrypted, cred.iv, this.masterKey);
   }
 
+  private mapProviderToCredentialKey(provider: string): string {
+    if (provider === 'claude') return 'anthropic';
+    return provider;
+  }
+
   private getProviderHost(provider: string): string | null {
-    const customUrl = this.decryptCredential(`${provider}.base_url`);
+    const credKey = this.mapProviderToCredentialKey(provider);
+    const customUrl = this.decryptCredential(`${credKey}.base_url`);
     if (customUrl) return customUrl;
     return DEFAULT_PROVIDER_HOSTS[provider] ?? null;
   }
 
   private getAuthToken(provider: string): string {
-    const customToken = this.decryptCredential(`${provider}.auth_token`);
+    const credKey = this.mapProviderToCredentialKey(provider);
+    const customToken = this.decryptCredential(`${credKey}.auth_token`);
     if (customToken) return customToken;
 
-    const apiKey = this.decryptCredential(provider);
+    const apiKey = this.decryptCredential(credKey);
     if (apiKey) return apiKey;
 
     throw new Error(`No credential found for provider: ${provider}`);

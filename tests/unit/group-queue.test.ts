@@ -8,6 +8,7 @@ describe('GroupQueue', () => {
       userId,
       groupId,
       messages: [],
+      provider: 'claude',
       model: 'claude-sonnet',
       tools: [],
       createdAt: new Date(),

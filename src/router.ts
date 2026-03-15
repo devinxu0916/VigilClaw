@@ -1,9 +1,12 @@
 import { logger } from './logger.js';
+import { parseProviderModel, formatProviderModel } from './provider/factory.js';
+import { routeModel } from './model-router.js';
 import type { VigilClawDB } from './db.js';
 import type { CostGuard } from './cost-guard.js';
 import type { SessionManager } from './session-manager.js';
 import type { GroupQueue } from './group-queue.js';
 import type { RateLimiter } from './rate-limiter.js';
+import type { RoutingConfig } from './config.js';
 import type { IChannel } from './channels/types.js';
 import type { IncomingMessage, CostReport } from './types.js';
 import { encrypt } from './crypto.js';
@@ -13,6 +16,7 @@ export class Router {
   private channels: IChannel[] = [];
   private masterKey: Buffer | null = null;
   private adminUsers: Set<string> = new Set();
+  private routingConfig: RoutingConfig = { enabled: false, simpleThresholdChars: 500 };
 
   constructor(
     private db: VigilClawDB,
@@ -29,6 +33,10 @@ export class Router {
 
   setAdminUsers(users: string[]): void {
     this.adminUsers = new Set(users);
+  }
+
+  setRoutingConfig(config: RoutingConfig): void {
+    this.routingConfig = config;
   }
 
   private isAdmin(userId: string): boolean {
@@ -65,7 +73,13 @@ export class Router {
 
     const context = await this.sessionManager.getContext(msg.userId, msg.groupId);
     const user = this.db.getUser(msg.userId);
-    const model = user?.currentModel ?? this.defaultModel;
+    const userModel = user?.currentModel ?? this.defaultModel;
+    const routedModel = routeModel({
+      userModel,
+      messages: context,
+      routingConfig: this.routingConfig,
+    });
+    const { provider, model } = parseProviderModel(routedModel);
 
     const taskId = crypto.randomUUID();
     this.db.insertTask({
@@ -84,6 +98,7 @@ export class Router {
       userId: msg.userId,
       groupId: msg.groupId,
       messages: context,
+      provider,
       model,
       tools: ['bash', 'read', 'write', 'edit'],
       createdAt: new Date(),
@@ -135,15 +150,47 @@ export class Router {
       return;
     }
 
+    if (args[0] === 'list') {
+      const lines = [
+        '📋 **可用模型**\n',
+        '**Claude:**',
+        '  sonnet → claude-sonnet-4-5-20250929',
+        '  haiku → claude-haiku-3-5-20250929',
+        '  opus → claude-opus-4-20250929',
+        '',
+        '**OpenAI:**',
+        '  gpt4o → openai:gpt-4o',
+        '  gpt4o-mini → openai:gpt-4o-mini',
+        '',
+        '**Ollama (本地):**',
+        '  llama3 → ollama:llama3.1',
+        '  deepseek → ollama:deepseek-r1',
+        '',
+        '用法: /model <别名或provider:model>',
+      ];
+      await this.reply(msg, lines.join('\n'));
+      return;
+    }
+
     const modelMap: Record<string, string> = {
-      sonnet: 'claude-sonnet-4-5-20250929',
-      haiku: 'claude-haiku-3-5-20250929',
-      opus: 'claude-opus-4-20250929',
+      sonnet: 'claude:claude-sonnet-4-5-20250929',
+      haiku: 'claude:claude-haiku-3-5-20250929',
+      opus: 'claude:claude-opus-4-20250929',
+      gpt4o: 'openai:gpt-4o',
+      'gpt4o-mini': 'openai:gpt-4o-mini',
+      llama3: 'ollama:llama3.1',
+      deepseek: 'ollama:deepseek-r1',
     };
 
     const modelKey = args[0]!.toLowerCase();
-    const model = modelMap[modelKey] ?? args[0]!;
-    await this.reply(msg, `✅ 模型已切换为: ${model}`);
+    const resolved = modelMap[modelKey] ?? args[0]!;
+    const { provider, model } = parseProviderModel(resolved);
+    const fullModel = formatProviderModel(provider, model);
+
+    this.db.getOrCreateUser(msg.userId, msg.userId);
+    this.db.updateUserModel(msg.userId, fullModel);
+    logger.info({ userId: msg.userId, provider, model }, 'User model updated');
+    await this.reply(msg, `✅ 模型已切换为: ${fullModel}`);
   }
 
   private async handleBudgetCommand(msg: IncomingMessage, args: string[]): Promise<void> {

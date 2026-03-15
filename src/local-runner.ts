@@ -1,6 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import type { QueuedTask, TaskResult } from './types.js';
 import type { VigilClawDB } from './db.js';
+import type { IProvider, ChatResponse } from './provider/types.js';
+import { createProvider } from './provider/factory.js';
+import type { ProviderType } from './provider/factory.js';
 import { decrypt } from './crypto.js';
 import { logger } from './logger.js';
 
@@ -16,37 +18,28 @@ export class LocalRunner {
   ) {}
 
   async runTask(task: QueuedTask): Promise<TaskResult> {
-    const client = this.createClient();
-
-    const systemMessages = task.messages.filter((m) => m.role === 'system').map((m) => m.content);
-    const systemPrompt =
-      systemMessages.length > 0
-        ? SYSTEM_PROMPT + '\n\n' + systemMessages.join('\n\n')
-        : SYSTEM_PROMPT;
-
-    const messages: Anthropic.MessageParam[] = task.messages
-      .filter((m) => m.role !== 'system')
-      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const providerType = (task.provider || 'claude') as ProviderType;
+    const provider = await this.createProviderForTask(providerType);
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
+    const messages = [...task.messages];
+
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const response = await client.messages.create({
+      const response: ChatResponse = await provider.chat({
         model: task.model,
-        max_tokens: 4096,
-        system: systemPrompt,
         messages,
+        system: SYSTEM_PROMPT,
+        maxTokens: 4096,
       });
 
-      totalInputTokens += response.usage.input_tokens;
-      totalOutputTokens += response.usage.output_tokens;
+      totalInputTokens += response.usage.inputTokens;
+      totalOutputTokens += response.usage.outputTokens;
 
-      messages.push({ role: 'assistant', content: response.content });
-
-      if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
+      if (response.stopReason === 'end_turn' || response.stopReason === 'stop_sequence') {
         const textContent = response.content
-          .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+          .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
           .map((b) => b.text)
           .join('');
 
@@ -59,6 +52,15 @@ export class LocalRunner {
             model: task.model,
           },
         };
+      }
+
+      const assistantContent = response.content
+        .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+        .map((b) => b.text)
+        .join('');
+
+      if (assistantContent) {
+        messages.push({ role: 'assistant', content: assistantContent });
       }
     }
 
@@ -73,29 +75,29 @@ export class LocalRunner {
     };
   }
 
-  private createClient(): Anthropic {
-    const baseUrl = this.decryptCredential('anthropic.base_url');
-    const authToken = this.decryptCredential('anthropic.auth_token');
-    const apiKey = this.decryptCredential('anthropic');
+  private async createProviderForTask(providerType: ProviderType): Promise<IProvider> {
+    const config: Record<string, string | undefined> = {};
 
-    const options: Record<string, unknown> = {};
-
-    if (baseUrl) {
-      options.baseURL = baseUrl;
-    }
-
-    if (authToken) {
-      options.apiKey = authToken;
-    } else if (apiKey) {
-      options.apiKey = apiKey;
+    if (providerType === 'claude') {
+      const baseUrl = this.decryptCredential('anthropic.base_url');
+      const authToken = this.decryptCredential('anthropic.auth_token');
+      const apiKey = this.decryptCredential('anthropic');
+      if (baseUrl) config.baseURL = baseUrl;
+      config.apiKey = authToken ?? apiKey ?? undefined;
+    } else if (providerType === 'openai') {
+      const apiKey = this.decryptCredential('openai');
+      if (apiKey) config.apiKey = apiKey;
+    } else if (providerType === 'ollama') {
+      const baseUrl = this.decryptCredential('ollama.base_url');
+      if (baseUrl) config.baseUrl = baseUrl;
     }
 
     logger.debug(
-      { baseUrl: baseUrl ? '***set***' : 'default', hasToken: !!(authToken ?? apiKey) },
-      'Creating Anthropic client',
+      { providerType, hasCredentials: Object.keys(config).length > 0 },
+      'Creating provider for local task',
     );
 
-    return new Anthropic(options as ConstructorParameters<typeof Anthropic>[0]);
+    return createProvider(providerType, config);
   }
 
   private decryptCredential(key: string): string | null {

@@ -35,6 +35,7 @@ function mockProvider(facts: string[] | null = null): ClaudeProvider {
       usage: { inputTokens: 100, outputTokens: 50 },
       model: 'claude-haiku-3-5-20250929',
     }),
+    estimateCost: vi.fn().mockReturnValue(0.25),
   } as unknown as ClaudeProvider;
 }
 
@@ -121,6 +122,7 @@ describe('MemoryStore', () => {
       const embedder = mockEmbedder();
       const provider = {
         chat: vi.fn().mockRejectedValue(new Error('API down')),
+        estimateCost: vi.fn().mockReturnValue(0),
       } as unknown as ClaudeProvider;
       const store = new MemoryStore(db, embedder, provider, defaultConfig);
 

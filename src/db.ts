@@ -270,6 +270,10 @@ export class VigilClawDB {
         RETURNING *
       `),
       getUser: this.db.prepare(`SELECT * FROM users WHERE id = ?`),
+      updateUserModel: this.db.prepare(`
+        UPDATE users SET current_model = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `),
       updateUserBudget: this.db.prepare(`
         UPDATE users SET max_cost_per_day = ?, max_cost_per_month = ?, updated_at = datetime('now')
         WHERE id = ?
@@ -399,6 +403,10 @@ export class VigilClawDB {
 
   updateUserBudget(userId: string, dayLimit: number, monthLimit: number): void {
     this.stmts.updateUserBudget.run(dayLimit, monthLimit, userId);
+  }
+
+  updateUserModel(userId: string, model: string): void {
+    this.stmts.updateUserModel.run(model, userId);
   }
 
   insertTask(task: { id: string; userId: string; groupId?: string; inputSummary?: string }): void {

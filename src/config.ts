@@ -23,13 +23,34 @@ export const DockerConfigSchema = z.object({
 });
 
 export const ProviderConfigSchema = z.object({
-  default: z.enum(['claude']).default('claude'),
+  default: z.enum(['claude', 'openai', 'ollama']).default('claude'),
   claude: z
     .object({
       model: z.string().default('claude-sonnet-4-5-20250929'),
       maxTokens: z.number().default(4096),
     })
     .default({}),
+  openai: z
+    .object({
+      model: z.string().default('gpt-4o'),
+      maxTokens: z.number().default(4096),
+      apiKey: z.string().optional(),
+    })
+    .default({}),
+  ollama: z
+    .object({
+      baseUrl: z.string().default('http://localhost:11434'),
+      model: z.string().default('llama3.1'),
+      maxTokens: z.number().default(4096),
+    })
+    .default({}),
+});
+
+export const RoutingConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  simpleModel: z.string().optional(),
+  complexModel: z.string().optional(),
+  simpleThresholdChars: z.number().default(500),
 });
 
 export const CostConfigSchema = z.object({
@@ -48,7 +69,7 @@ export const SessionConfigSchema = z.object({
 
 export const MemoryConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  similarityThreshold: z.number().min(0).max(1).default(0.3),
+  similarityThreshold: z.number().min(0).max(1).default(0),
   maxRecallCount: z.number().default(5),
   embeddingModel: z.string().default('Xenova/all-MiniLM-L6-v2'),
 });
@@ -67,6 +88,7 @@ export const ConfigSchema = z.object({
   telegram: TelegramConfigSchema,
   docker: DockerConfigSchema.default({}),
   provider: ProviderConfigSchema.default({}),
+  routing: RoutingConfigSchema.default({}),
   cost: CostConfigSchema.default({}),
   session: SessionConfigSchema.default({}),
   memory: MemoryConfigSchema.default({}),
@@ -81,6 +103,8 @@ export type DockerConfig = z.infer<typeof DockerConfigSchema>;
 export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
 export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
+export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type RoutingConfig = z.infer<typeof RoutingConfigSchema>;
 
 function loadConfigFile(filePath: string): Record<string, unknown> {
   try {
@@ -113,6 +137,12 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_DOCKER_IMAGE: ['docker', 'image'],
     VIGILCLAW_DOCKER_TASK_TIMEOUT: ['docker', 'taskTimeout'],
     ANTHROPIC_MODEL: ['provider', 'claude', 'model'],
+    OPENAI_API_KEY: ['provider', 'openai', 'apiKey'],
+    OPENAI_MODEL: ['provider', 'openai', 'model'],
+    VIGILCLAW_OLLAMA_BASE_URL: ['provider', 'ollama', 'baseUrl'],
+    VIGILCLAW_OLLAMA_MODEL: ['provider', 'ollama', 'model'],
+    VIGILCLAW_DEFAULT_PROVIDER: ['provider', 'default'],
+    VIGILCLAW_ROUTING_ENABLED: ['routing', 'enabled'],
     VIGILCLAW_MAX_CONTEXT_TOKENS: ['session', 'maxContextTokens'],
     VIGILCLAW_RECENT_MESSAGES_KEEP: ['session', 'recentMessagesKeep'],
     VIGILCLAW_MEMORY_ENABLED: ['memory', 'enabled'],

@@ -3,6 +3,7 @@ export interface TaskInput {
   userId: string;
   groupId?: string;
   messages: Array<{ role: string; content: string }>;
+  provider: string;
   model: string;
   maxTokens: number;
   tools: string[];

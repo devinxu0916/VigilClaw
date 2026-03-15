@@ -1,7 +1,6 @@
 import { logger } from './logger.js';
-import { calculateCost } from './provider/claude.js';
 import type { VigilClawDB } from './db.js';
-import type { ClaudeProvider } from './provider/claude.js';
+import type { IProvider } from './provider/types.js';
 import type { Message } from './types.js';
 
 const SUMMARIZATION_MODEL = 'claude-haiku-3-5-20250929';
@@ -47,7 +46,7 @@ interface CompressorConfig {
 
 export class ContextCompressor {
   constructor(
-    private provider: ClaudeProvider,
+    private provider: IProvider,
     private db: VigilClawDB,
     private config: CompressorConfig,
   ) {}
@@ -85,7 +84,11 @@ export class ContextCompressor {
 
       this.db.upsertContextSummary(sessionKey, summary);
 
-      const cost = calculateCost(SUMMARIZATION_MODEL, usage.inputTokens, usage.outputTokens);
+      const cost = this.provider.estimateCost(
+        usage.inputTokens,
+        usage.outputTokens,
+        SUMMARIZATION_MODEL,
+      );
       this.db.recordApiCall({
         taskId: `summary:${sessionKey}`,
         userId,
@@ -128,7 +131,7 @@ export class ContextCompressor {
       temperature: 0.3,
     });
 
-    const textBlock = response.content.find((b) => b.type === 'text');
+    const textBlock = response.content.find((b: { type: string }) => b.type === 'text');
     const summary = textBlock && textBlock.type === 'text' ? textBlock.text : '';
     return { summary, usage: response.usage };
   }

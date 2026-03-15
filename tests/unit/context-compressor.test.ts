@@ -23,6 +23,7 @@ function mockProvider(summaryText = 'Mocked summary'): ClaudeProvider {
       usage: { inputTokens: 100, outputTokens: 50 },
       model: 'claude-haiku-3-5-20250929',
     }),
+    estimateCost: vi.fn().mockReturnValue(0.25),
   } as unknown as ClaudeProvider;
 }
 
@@ -145,6 +146,7 @@ describe('ContextCompressor', () => {
   it('should fall back to truncation on API failure', async () => {
     const provider = {
       chat: vi.fn().mockRejectedValue(new Error('API down')),
+      estimateCost: vi.fn().mockReturnValue(0),
     } as unknown as ClaudeProvider;
     const compressor = new ContextCompressor(provider, db, defaultConfig);
     const msgs = makeMessages(10, 100);

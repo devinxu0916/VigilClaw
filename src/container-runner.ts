@@ -29,7 +29,10 @@ export class ContainerRunner {
   async runTask(task: QueuedTask): Promise<TaskResult> {
     const ipcDir = prepareIpcDir(this.dataDir, task.id);
 
-    const proxyPort = await this.credentialProxy.createProxyForTask(task.id, 'anthropic');
+    const proxyPort = await this.credentialProxy.createProxyForTask(
+      task.id,
+      task.provider || 'anthropic',
+    );
     const proxyUrl = `http://host.docker.internal:${proxyPort}`;
 
     writeTaskInput(ipcDir, {
@@ -37,6 +40,7 @@ export class ContainerRunner {
       userId: task.userId,
       groupId: task.groupId,
       messages: task.messages,
+      provider: task.provider || 'claude',
       model: task.model,
       maxTokens: 4096,
       tools: task.tools,

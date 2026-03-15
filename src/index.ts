@@ -14,6 +14,8 @@ import { Router } from './router.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { startHealthServer } from './health.js';
 import { ClaudeProvider, calculateCost } from './provider/claude.js';
+import { parseProviderModel, createProvider, getCheapModel } from './provider/factory.js';
+import type { ProviderType } from './provider/factory.js';
 import { ContextCompressor } from './context-compressor.js';
 import { Embedder } from './embedder.js';
 import { MemoryStore } from './memory-store.js';
@@ -76,17 +78,20 @@ async function main(): Promise<void> {
     try {
       const result = await runner.runTask(task);
 
-      const cost = calculateCost(
-        result.response.model,
+      const providerForCost = await createProvider(task.provider as ProviderType).catch(
+        () => summaryProvider,
+      );
+      const cost = providerForCost.estimateCost(
         result.response.usage.inputTokens,
         result.response.usage.outputTokens,
+        result.response.model,
       );
 
       db.recordApiCall({
         taskId: task.id,
         userId: task.userId,
         groupId: task.groupId,
-        provider: 'anthropic',
+        provider: task.provider,
         model: result.response.model,
         inputTokens: result.response.usage.inputTokens,
         outputTokens: result.response.usage.outputTokens,
@@ -130,16 +135,14 @@ async function main(): Promise<void> {
   const taskScheduler = new TaskScheduler(db, groupQueue);
   const rateLimiter = new RateLimiter(config.rateLimit);
 
-  const router = new Router(
-    db,
-    costGuard,
-    sessionManager,
-    groupQueue,
-    rateLimiter,
-    config.provider.claude.model,
-  );
+  const defaultProvider = config.provider.default;
+  const defaultModelConfig = config.provider[defaultProvider] as { model: string };
+  const defaultModel = `${defaultProvider}:${defaultModelConfig.model}`;
+
+  const router = new Router(db, costGuard, sessionManager, groupQueue, rateLimiter, defaultModel);
 
   router.setMasterKey(masterKey);
+  router.setRoutingConfig(config.routing);
   if (config.telegram.allowedUsers.length > 0) {
     router.setAdminUsers(config.telegram.allowedUsers.map((id) => `telegram:${id}`));
   }
