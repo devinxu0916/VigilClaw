@@ -104,10 +104,10 @@
 - [x] **6.5** Run `pnpm test` and ensure all tests pass
 - [x] **6.6** Run `pnpm build` and verify successful compilation
 - [x] **6.7** Run `pnpm docker:build` and verify container image builds successfully
-- [ ] **6.8** E2E test: Install web-search skill and use it in a conversation
-  - [ ] Start VigilClaw in dev mode
-  - [ ] Install example web-search skill via `/skill install`
-  - [ ] Send a message that triggers web_search tool usage
-  - [ ] Verify tool is called and result returned
-  - [ ] Check security_events table for skill execution log
+- [x] **6.8** E2E test: Install web-search skill and use it in a conversation
+  - [x] Start VigilClaw in dev mode
+  - [x] Install example web-search skill via `/skill install`
+  - [x] Send a message that triggers web_search tool usage
+  - [x] Verify tool is called and result returned
+  - [x] Check security_events table for skill execution log
 - [x] **6.9** Update ROADMAP.md and CHANGELOG.md to reflect skill system completion
