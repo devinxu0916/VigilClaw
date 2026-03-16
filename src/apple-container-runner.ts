@@ -24,10 +24,10 @@ export class AppleContainerRunner implements IRunner {
 
   async ping(): Promise<boolean> {
     try {
-      const { stdout } = await execFile(CONTAINER_CLI, ['system', 'info'], {
+      const { stdout } = await execFile(CONTAINER_CLI, ['system', 'status'], {
         timeout: 5000,
       });
-      return stdout.length > 0;
+      return stdout.includes('running');
     } catch {
       return false;
     }
@@ -96,7 +96,7 @@ export class AppleContainerRunner implements IRunner {
 
   async drainAll(timeoutMs: number): Promise<void> {
     try {
-      const { stdout } = await execFile(CONTAINER_CLI, ['ls', '--format', 'json'], {
+      const { stdout } = await execFile(CONTAINER_CLI, ['list', '--all', '--format', 'json'], {
         timeout: 5000,
       });
 
@@ -113,7 +113,7 @@ export class AppleContainerRunner implements IRunner {
 
       const timeoutSec = Math.ceil(timeoutMs / 1000);
       const stopPromises = vigilclawContainers.map((c) =>
-        execFile(CONTAINER_CLI, ['stop', c.name, '-t', String(timeoutSec)], {
+        execFile(CONTAINER_CLI, ['stop', '--time', String(timeoutSec), c.name], {
           timeout: timeoutMs + 5000,
         }).catch((err) => {
           logger.warn({ err, container: c.name }, 'Failed to stop container');
@@ -211,7 +211,7 @@ export class AppleContainerRunner implements IRunner {
 
   private async stopContainer(containerName: string): Promise<void> {
     try {
-      await execFile(CONTAINER_CLI, ['stop', containerName, '-t', '3'], {
+      await execFile(CONTAINER_CLI, ['stop', '--time', '3', containerName], {
         timeout: 10000,
       });
     } catch {}
@@ -220,7 +220,7 @@ export class AppleContainerRunner implements IRunner {
   private async cleanup(containerName: string): Promise<void> {
     try {
       await this.stopContainer(containerName);
-      await execFile(CONTAINER_CLI, ['rm', containerName], { timeout: 5000 });
+      await execFile(CONTAINER_CLI, ['delete', '--force', containerName], { timeout: 5000 });
     } catch (err) {
       logger.debug({ err, container: containerName }, 'Cleanup failed');
     }
