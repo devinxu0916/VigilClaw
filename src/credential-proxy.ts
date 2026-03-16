@@ -36,7 +36,7 @@ export class CredentialProxy {
 
     const port = await new Promise<number>((resolve, reject) => {
       server.on('error', reject);
-      server.listen(0, '127.0.0.1', () => {
+      server.listen(0, '0.0.0.0', () => {
         const addr = server.address() as net.AddressInfo;
         resolve(addr.port);
       });

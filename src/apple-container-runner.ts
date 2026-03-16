@@ -22,6 +22,17 @@ export class AppleContainerRunner implements IRunner {
     private dataDir: string,
   ) {}
 
+  private async getHostIP(): Promise<string> {
+    try {
+      const { stdout } = await execFile(CONTAINER_CLI, ['run', '--rm', 'alpine', 'ip', 'route'], {
+        timeout: 10000,
+      });
+      const match = /default via (\S+)/.exec(stdout);
+      if (match?.[1]) return match[1];
+    } catch {}
+    return '192.168.64.1';
+  }
+
   async ping(): Promise<boolean> {
     try {
       const { stdout } = await execFile(CONTAINER_CLI, ['system', 'status'], {
@@ -40,7 +51,8 @@ export class AppleContainerRunner implements IRunner {
       task.id,
       task.provider || 'anthropic',
     );
-    const proxyUrl = `http://host.container.internal:${proxyPort}`;
+    const proxyHost = await this.getHostIP();
+    const proxyUrl = `http://${proxyHost}:${proxyPort}`;
 
     writeTaskInput(ipcDir, {
       taskId: task.id,
