@@ -138,6 +138,7 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_DOCKER_SOCKET_PATH: ['docker', 'socketPath'],
     VIGILCLAW_DOCKER_IMAGE: ['docker', 'image'],
     VIGILCLAW_DOCKER_TASK_TIMEOUT: ['docker', 'taskTimeout'],
+    VIGILCLAW_CONTAINER_RUNTIME: ['docker', 'runtime'],
     ANTHROPIC_MODEL: ['provider', 'claude', 'model'],
     OPENAI_API_KEY: ['provider', 'openai', 'apiKey'],
     OPENAI_MODEL: ['provider', 'openai', 'model'],
