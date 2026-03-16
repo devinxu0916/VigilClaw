@@ -6,6 +6,18 @@
 
 ### Added
 
+- **Phase 2: Apple Container 支持** — macOS 原生容器运行时
+  - `src/runner-types.ts`：IRunner 接口（ContainerRunner/AppleContainerRunner/LocalRunner 共用）
+  - `src/apple-container-runner.ts`：通过 `container` CLI 管理容器生命周期，VM 级隔离
+  - 运行时自动选择：Apple Container → Docker → Local（优先级链）
+  - 配置 `container.runtime`：auto/docker/apple/local
+  - `host.container.internal` 宿主访问（vs Docker 的 `host.docker.internal`）
+  - `pnpm apple:build` 构建脚本（OCI 镜像兼容，同一 Dockerfile）
+  - 亚秒级容器启动（200-400ms vs Docker 1.5-3s），MB 级内存开销
+  - 需要 macOS 26+ Apple Silicon
+
+### Added
+
 - **Phase 2: Skill 系统** — 用户可扩展 Agent 工具能力
   - `src/skill-types.ts`：SkillManifest/SkillInfo/SkillPermission 类型定义
   - `src/skill-registry.ts`：Skill 注册表（安装/卸载/启用/禁用/版本管理/冲突检测）

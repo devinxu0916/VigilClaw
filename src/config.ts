@@ -12,8 +12,10 @@ export const TelegramConfigSchema = z.object({
 });
 
 export const DockerConfigSchema = z.object({
+  runtime: z.enum(['auto', 'docker', 'apple', 'local']).default('auto'),
   socketPath: z.string().default('/var/run/docker.sock'),
   image: z.string().default('vigilclaw/agent-runner:latest'),
+  appleImage: z.string().default('vigilclaw-agent:latest'),
   memoryLimit: z.number().default(512 * 1024 * 1024),
   cpuQuota: z.number().default(100_000),
   cpuPeriod: z.number().default(100_000),

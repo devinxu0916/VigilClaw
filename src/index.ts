@@ -7,6 +7,8 @@ import { SessionManager } from './session-manager.js';
 import { SecurityLogger } from './security-logger.js';
 import { ContainerRunner } from './container-runner.js';
 import { LocalRunner } from './local-runner.js';
+import { AppleContainerRunner } from './apple-container-runner.js';
+import type { IRunner } from './runner-types.js';
 import { GroupQueue } from './group-queue.js';
 import { SkillRegistry } from './skill-registry.js';
 import { TaskScheduler } from './task-scheduler.js';
@@ -59,15 +61,21 @@ async function main(): Promise<void> {
   }
 
   const containerRunner = new ContainerRunner(config.docker, credentialProxy, config.dataDir);
+  const appleRunner = new AppleContainerRunner(config.docker, credentialProxy, config.dataDir);
   const localRunner = new LocalRunner(db, masterKey);
 
-  const dockerAvailable = await containerRunner.ping();
-  const useLocal = process.env.VIGILCLAW_LOCAL_MODE === 'true' || !dockerAvailable;
-  const runner: { runTask(task: QueuedTask): Promise<TaskResult> } = useLocal
-    ? localRunner
-    : containerRunner;
+  const runner = await selectRunner(
+    config.docker.runtime,
+    appleRunner,
+    containerRunner,
+    localRunner,
+  );
+  const runtimeType =
+    runner === appleRunner ? 'apple' : runner === containerRunner ? 'docker' : 'local';
 
-  if (useLocal) {
+  logger.info({ runtime: runtimeType }, 'Runtime selected');
+
+  if (runtimeType === 'local') {
     logger.warn('Using local runner (no container isolation)');
   }
 
@@ -166,7 +174,7 @@ async function main(): Promise<void> {
 
   taskScheduler.start();
 
-  if (dockerAvailable) {
+  if (runtimeType !== 'local') {
     startHealthServer(
       config.healthPort,
       db,
@@ -188,7 +196,7 @@ async function main(): Promise<void> {
   logger.info(
     {
       telegram: config.telegram.enabled,
-      docker: dockerAvailable,
+      docker: runtimeType !== 'local',
       maxConcurrent: config.maxConcurrentContainers,
       model: config.provider.claude.model,
     },
@@ -249,6 +257,31 @@ function setupGracefulShutdown(
   process.on('SIGTERM', () => {
     void shutdown('SIGTERM');
   });
+}
+
+async function selectRunner(
+  runtime: string,
+  appleRunner: IRunner,
+  dockerRunner: IRunner,
+  localRunner: IRunner,
+): Promise<IRunner> {
+  if (process.env.VIGILCLAW_LOCAL_MODE === 'true') return localRunner;
+
+  switch (runtime) {
+    case 'apple':
+      if (await appleRunner.ping()) return appleRunner;
+      throw new Error('Apple Container runtime not available');
+    case 'docker':
+      if (await dockerRunner.ping()) return dockerRunner;
+      throw new Error('Docker runtime not available');
+    case 'local':
+      return localRunner;
+    case 'auto':
+    default:
+      if (process.platform === 'darwin' && (await appleRunner.ping())) return appleRunner;
+      if (await dockerRunner.ping()) return dockerRunner;
+      return localRunner;
+  }
 }
 
 main().catch((err) => {

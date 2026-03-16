@@ -3,6 +3,7 @@ import type { VigilClawDB } from './db.js';
 import type { IProvider, ChatResponse } from './provider/types.js';
 import { createProvider } from './provider/factory.js';
 import type { ProviderType } from './provider/factory.js';
+import type { IRunner } from './runner-types.js';
 import { decrypt } from './crypto.js';
 import { logger } from './logger.js';
 
@@ -11,7 +12,7 @@ const MAX_TURNS = 30;
 const SYSTEM_PROMPT = `You are a helpful AI assistant. You can help users with various tasks.
 Keep responses concise and focused.`;
 
-export class LocalRunner {
+export class LocalRunner implements IRunner {
   constructor(
     private db: VigilClawDB,
     private masterKey: Buffer,
@@ -108,5 +109,9 @@ export class LocalRunner {
 
   async ping(): Promise<boolean> {
     return true;
+  }
+
+  async drainAll(_timeoutMs: number): Promise<void> {
+    return;
   }
 }

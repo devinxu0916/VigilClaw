@@ -14,9 +14,11 @@ import {
   cleanupIpcDir,
 } from './ipc.js';
 
+import type { IRunner } from './runner-types.js';
+
 const logger = pino({ name: 'container-runner' });
 
-export class ContainerRunner {
+export class ContainerRunner implements IRunner {
   private docker: Docker;
 
   constructor(
