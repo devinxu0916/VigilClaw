@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![pnpm](https://img.shields.io/badge/pnpm-≥9-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
-VigilClaw 是一个面向开发者的开源个人 AI 助手。通过消息渠道与 LLM 对话，Agent 在 Docker 容器中安全执行，网络受限、凭证隔离、成本实时追踪。架构上支持多渠道、多模型扩展，目标做一个真正可信赖的轻量级 AI 助手。
+VigilClaw 是一个面向开发者的开源个人 AI 助手。通过消息渠道与 LLM 对话，Agent 在容器中安全执行，网络受限、凭证隔离、成本实时追踪。架构上支持多渠道、多模型扩展，目标做一个真正可信赖的轻量级 AI 助手。
 
 ---
 
