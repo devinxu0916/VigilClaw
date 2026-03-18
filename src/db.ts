@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import type { CostReport } from './types.js';
+import type { CostReport, ScheduledTaskRow } from './types.js';
 import { logger } from './logger.js';
 
 const require = createRequire(import.meta.url);
@@ -318,6 +318,22 @@ export class VigilClawDB {
         UPDATE scheduled_tasks SET last_run_at = datetime('now'), retry_count = 0
         WHERE id = ?
       `),
+      insertScheduledTask: this.db.prepare(`
+        INSERT INTO scheduled_tasks (id, user_id, group_id, cron_expression, task_prompt, next_run_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `),
+      deleteScheduledTask: this.db.prepare(`
+        DELETE FROM scheduled_tasks WHERE id = ? AND user_id = ?
+      `),
+      listScheduledTasks: this.db.prepare(`
+        SELECT * FROM scheduled_tasks WHERE user_id = ? ORDER BY created_at DESC
+      `),
+      updateScheduledTaskEnabled: this.db.prepare(`
+        UPDATE scheduled_tasks SET enabled = ? WHERE id = ? AND user_id = ?
+      `),
+      updateScheduledTaskNextRun: this.db.prepare(`
+        UPDATE scheduled_tasks SET next_run_at = ? WHERE id = ?
+      `),
       upsertContextSummary: this.db.prepare(`
         INSERT INTO context_summaries (session_key, summary, updated_at)
         VALUES (?, ?, datetime('now'))
@@ -489,12 +505,48 @@ export class VigilClawDB {
     );
   }
 
-  getDueScheduledTasks(): Array<Record<string, unknown>> {
-    return this.stmts.getDueScheduledTasks.all() as Array<Record<string, unknown>>;
+  getDueScheduledTasks(): ScheduledTaskRow[] {
+    return this.stmts.getDueScheduledTasks.all() as ScheduledTaskRow[];
   }
 
   updateScheduledTaskLastRun(taskId: string): void {
     this.stmts.updateScheduledTaskLastRun.run(taskId);
+  }
+
+  insertScheduledTask(task: {
+    id: string;
+    userId: string;
+    groupId?: string;
+    cronExpression: string;
+    taskPrompt: string;
+    nextRunAt: string;
+  }): void {
+    this.stmts.insertScheduledTask.run(
+      task.id,
+      task.userId,
+      task.groupId ?? null,
+      task.cronExpression,
+      task.taskPrompt,
+      task.nextRunAt,
+    );
+  }
+
+  deleteScheduledTask(id: string, userId: string): boolean {
+    const result = this.stmts.deleteScheduledTask.run(id, userId);
+    return result.changes > 0;
+  }
+
+  listScheduledTasks(userId: string): ScheduledTaskRow[] {
+    return this.stmts.listScheduledTasks.all(userId) as ScheduledTaskRow[];
+  }
+
+  updateScheduledTaskEnabled(id: string, userId: string, enabled: boolean): boolean {
+    const result = this.stmts.updateScheduledTaskEnabled.run(enabled ? 1 : 0, id, userId);
+    return result.changes > 0;
+  }
+
+  updateScheduledTaskNextRun(id: string, nextRunAt: string): void {
+    this.stmts.updateScheduledTaskNextRun.run(nextRunAt, id);
   }
 
   upsertContextSummary(sessionKey: string, summary: string): void {

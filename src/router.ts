@@ -7,6 +7,7 @@ import type { SessionManager } from './session-manager.js';
 import type { GroupQueue } from './group-queue.js';
 import type { RateLimiter } from './rate-limiter.js';
 import type { SkillRegistry } from './skill-registry.js';
+import type { TaskScheduler } from './task-scheduler.js';
 import type { RoutingConfig } from './config.js';
 import type { IChannel } from './channels/types.js';
 import type { IncomingMessage, CostReport } from './types.js';
@@ -19,6 +20,7 @@ export class Router {
   private adminUsers: Set<string> = new Set();
   private routingConfig: RoutingConfig = { enabled: false, simpleThresholdChars: 500 };
   private skillRegistry: SkillRegistry | null = null;
+  private taskScheduler: TaskScheduler | null = null;
 
   constructor(
     private db: VigilClawDB,
@@ -43,6 +45,10 @@ export class Router {
 
   setSkillRegistry(registry: SkillRegistry): void {
     this.skillRegistry = registry;
+  }
+
+  setTaskScheduler(scheduler: TaskScheduler): void {
+    this.taskScheduler = scheduler;
   }
 
   private isAdmin(userId: string): boolean {
@@ -138,6 +144,9 @@ export class Router {
         break;
       case '/skill':
         await this.handleSkillCommand(msg, args);
+        break;
+      case '/schedule':
+        await this.handleScheduleCommand(msg, args);
         break;
       case '/help':
         await this.reply(msg, this.helpText());
@@ -385,6 +394,127 @@ export class Router {
     );
   }
 
+  private async handleScheduleCommand(msg: IncomingMessage, args: string[]): Promise<void> {
+    if (!this.taskScheduler) {
+      await this.reply(msg, '❌ 定时任务系统未启用。');
+      return;
+    }
+
+    const subCmd = args[0]?.toLowerCase();
+
+    if (!subCmd || subCmd === 'list') {
+      const tasks = this.db.listScheduledTasks(msg.userId);
+      if (tasks.length === 0) {
+        await this.reply(
+          msg,
+          '📋 没有定时任务。\n使用 `/schedule add <cron> <prompt>` 创建。',
+        );
+        return;
+      }
+      const lines = tasks.map((t) => {
+        const status = t.enabled ? '✅' : '⏸️';
+        const shortId = t.id.slice(0, 8);
+        const nextRun = t.next_run_at ? t.next_run_at.replace('T', ' ').slice(0, 19) : '-';
+        return `${status} \`${shortId}\` \`${t.cron_expression}\` → ${t.task_prompt.slice(0, 40)}${t.task_prompt.length > 40 ? '...' : ''}\n   下次: ${nextRun}`;
+      });
+      await this.reply(msg, `📋 **定时任务**\n\n${lines.join('\n\n')}`);
+      return;
+    }
+
+    if (subCmd === 'add') {
+      if (args.length < 7) {
+        await this.reply(
+          msg,
+          '❌ 用法: `/schedule add <分> <时> <日> <月> <周> <任务描述>`\n示例: `/schedule add 0 9 * * * 总结今日待办`',
+        );
+        return;
+      }
+      const cronParts = args.slice(1, 6);
+      const cronExpression = cronParts.join(' ');
+      const taskPrompt = args.slice(6).join(' ');
+
+      const taskId = this.taskScheduler.createTask({
+        userId: msg.userId,
+        groupId: msg.groupId,
+        cronExpression,
+        taskPrompt,
+      });
+
+      if (!taskId) {
+        await this.reply(msg, '❌ 无效的 cron 表达式。格式: 分 时 日 月 周');
+        return;
+      }
+
+      await this.reply(
+        msg,
+        `✅ 定时任务已创建\nID: \`${taskId.slice(0, 8)}\`\nCron: \`${cronExpression}\`\n任务: ${taskPrompt}`,
+      );
+      return;
+    }
+
+    if (subCmd === 'remove') {
+      const idPrefix = args[1];
+      if (!idPrefix) {
+        await this.reply(msg, '❌ 用法: `/schedule remove <id>`');
+        return;
+      }
+      const task = this.findTaskByPrefix(msg.userId, idPrefix);
+      if (!task) {
+        await this.reply(msg, `❌ 未找到 ID 前缀为 \`${idPrefix}\` 的任务。`);
+        return;
+      }
+      const deleted = this.db.deleteScheduledTask(task.id, msg.userId);
+      if (deleted) {
+        await this.reply(msg, `✅ 定时任务 \`${task.id.slice(0, 8)}\` 已删除。`);
+      } else {
+        await this.reply(msg, `❌ 删除失败。`);
+      }
+      return;
+    }
+
+    if (subCmd === 'enable' || subCmd === 'disable') {
+      const idPrefix = args[1];
+      if (!idPrefix) {
+        await this.reply(msg, `❌ 用法: \`/schedule ${subCmd} <id>\``);
+        return;
+      }
+      const task = this.findTaskByPrefix(msg.userId, idPrefix);
+      if (!task) {
+        await this.reply(msg, `❌ 未找到 ID 前缀为 \`${idPrefix}\` 的任务。`);
+        return;
+      }
+      const enabling = subCmd === 'enable';
+      const updated = this.db.updateScheduledTaskEnabled(task.id, msg.userId, enabling);
+      if (!updated) {
+        await this.reply(msg, `❌ 操作失败。`);
+        return;
+      }
+      if (enabling) {
+        const { TaskScheduler } = await import('./task-scheduler.js');
+        const nextRunAt = TaskScheduler.computeNextRun(task.cron_expression);
+        if (nextRunAt) {
+          this.db.updateScheduledTaskNextRun(task.id, nextRunAt);
+        }
+      }
+      await this.reply(
+        msg,
+        `✅ 定时任务 \`${task.id.slice(0, 8)}\` 已${enabling ? '启用' : '禁用'}。`,
+      );
+      return;
+    }
+
+    await this.reply(
+      msg,
+      '❌ 未知子命令。\n用法: `/schedule list|add|remove|enable|disable`',
+    );
+  }
+
+  private findTaskByPrefix(userId: string, prefix: string): { id: string; cron_expression: string } | null {
+    const tasks = this.db.listScheduledTasks(userId);
+    const match = tasks.find((t) => t.id.startsWith(prefix));
+    return match ? { id: match.id, cron_expression: match.cron_expression } : null;
+  }
+
   private helpText(): string {
     return [
       '🐾 **VigilClaw Commands**',
@@ -399,6 +529,10 @@ export class Router {
       '/skill remove <名称> — 卸载 Skill (管理员)',
       '/skill enable|disable <名称> — 启用/禁用 Skill',
       '/skill info <名称> — 查看 Skill 详情',
+      '/schedule — 查看定时任务列表',
+      '/schedule add <cron 5字段> <任务描述> — 创建定时任务',
+      '/schedule remove <id> — 删除定时任务',
+      '/schedule enable|disable <id> — 启用/禁用定时任务',
       '/clear — 清空对话上下文',
       '/help — 显示帮助信息',
     ].join('\n');

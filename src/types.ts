@@ -122,3 +122,19 @@ export type SecurityEventType =
   | 'container_oom_killed';
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
+
+// ---- 定时任务类型 ----
+
+export interface ScheduledTaskRow {
+  id: string;
+  user_id: string;
+  group_id: string | null;
+  cron_expression: string;
+  task_prompt: string;
+  enabled: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+}
