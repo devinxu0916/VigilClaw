@@ -1,6 +1,7 @@
 import { Bot, InputFile } from 'grammy';
 import type { IChannel } from './types.js';
 import type { TelegramConfig } from '../config.js';
+import { splitMessage } from './message-utils.js';
 import { logger } from '../logger.js';
 
 type MessageHandler = (msg: {
@@ -117,28 +118,4 @@ export class TelegramChannel implements IChannel {
     if (groupId) return groupId.replace('telegram:group:', '');
     return userId.replace('telegram:', '');
   }
-}
-
-function splitMessage(text: string, maxLength: number): string[] {
-  if (text.length <= maxLength) return [text];
-
-  const chunks: string[] = [];
-  let remaining = text;
-
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLength) {
-      chunks.push(remaining);
-      break;
-    }
-
-    let splitAt = remaining.lastIndexOf('\n', maxLength);
-    if (splitAt === -1 || splitAt < maxLength / 2) {
-      splitAt = maxLength;
-    }
-
-    chunks.push(remaining.slice(0, splitAt));
-    remaining = remaining.slice(splitAt);
-  }
-
-  return chunks;
 }

@@ -11,6 +11,26 @@ export const TelegramConfigSchema = z.object({
   webhookUrl: z.string().optional(),
 });
 
+export const FeishuConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  appId: z.string().min(1),
+  appSecret: z.string().min(1),
+  encryptKey: z.string().optional(),
+  verificationToken: z.string().optional(),
+  allowedUsers: z.array(z.string()).default([]),
+  allowedGroups: z.array(z.string()).default([]),
+});
+
+export const DingTalkConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  appKey: z.string().min(1),
+  appSecret: z.string().min(1),
+  robotCode: z.string().min(1),
+  allowedUsers: z.array(z.string()).default([]),
+  allowedGroups: z.array(z.string()).default([]),
+  cooldownMs: z.number().default(100),
+});
+
 export const DockerConfigSchema = z.object({
   runtime: z.enum(['auto', 'docker', 'apple', 'local']).default('auto'),
   socketPath: z.string().default('/var/run/docker.sock'),
@@ -88,6 +108,8 @@ export const ConfigSchema = z.object({
   masterKey: z.string().min(64),
   dataDir: z.string().default('./data'),
   telegram: TelegramConfigSchema,
+  feishu: FeishuConfigSchema.optional(),
+  dingtalk: DingTalkConfigSchema.optional(),
   docker: DockerConfigSchema.default({}),
   provider: ProviderConfigSchema.default({}),
   routing: RoutingConfigSchema.default({}),
@@ -101,6 +123,8 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 export type TelegramConfig = z.infer<typeof TelegramConfigSchema>;
+export type FeishuConfig = z.infer<typeof FeishuConfigSchema>;
+export type DingTalkConfig = z.infer<typeof DingTalkConfigSchema>;
 export type DockerConfig = z.infer<typeof DockerConfigSchema>;
 export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
 export type SessionConfig = z.infer<typeof SessionConfigSchema>;
@@ -135,6 +159,13 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_TELEGRAM_BOT_TOKEN: ['telegram', 'botToken'],
     VIGILCLAW_TELEGRAM_MODE: ['telegram', 'mode'],
     VIGILCLAW_TELEGRAM_WEBHOOK_URL: ['telegram', 'webhookUrl'],
+    VIGILCLAW_FEISHU_APP_ID: ['feishu', 'appId'],
+    VIGILCLAW_FEISHU_APP_SECRET: ['feishu', 'appSecret'],
+    VIGILCLAW_FEISHU_ENCRYPT_KEY: ['feishu', 'encryptKey'],
+    VIGILCLAW_FEISHU_VERIFY_TOKEN: ['feishu', 'verificationToken'],
+    VIGILCLAW_DINGTALK_APP_KEY: ['dingtalk', 'appKey'],
+    VIGILCLAW_DINGTALK_APP_SECRET: ['dingtalk', 'appSecret'],
+    VIGILCLAW_DINGTALK_ROBOT_CODE: ['dingtalk', 'robotCode'],
     VIGILCLAW_DOCKER_SOCKET_PATH: ['docker', 'socketPath'],
     VIGILCLAW_DOCKER_IMAGE: ['docker', 'image'],
     VIGILCLAW_DOCKER_TASK_TIMEOUT: ['docker', 'taskTimeout'],

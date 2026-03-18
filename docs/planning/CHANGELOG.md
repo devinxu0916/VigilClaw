@@ -6,6 +6,30 @@
 
 ### Added
 
+- **Phase 2 P2: 飞书 & 钉钉渠道接入**
+  - `src/channels/message-utils.ts`：公共 `splitMessage()` 函数，供所有渠道共用
+  - `src/channels/feishu.ts`：飞书渠道（`@larksuiteoapi/node-sdk` WSClient 长连接，无需公网 IP）
+    - Post 富文本发送 + 自动降级纯文本、图片上传（`im.image.create`）+ 降级
+    - `markdownToPost()`：简易 Markdown → 飞书 Post 富文本转换（粗体/代码/链接）
+    - 消息去重（Set）、群聊 @mention 自动剥离、用户/群组白名单
+    - 用户 ID 格式：`feishu:{open_id}`，群组：`feishu:group:{chat_id}`
+  - `src/channels/dingtalk.ts`：钉钉渠道（零第三方 SDK，Node.js 22 内建 WebSocket + fetch）
+    - Stream 长连接：`getAccessToken()` → `registerStream()` → WebSocket
+    - Access Token 缓存 + 过期前 60s 自动刷新
+    - WebSocket 断线自动重连（5s 延迟）、心跳 SYSTEM 消息 ACK
+    - Markdown 消息 → 降级纯文本，群聊 `groupMessages/send`，单聊 `oToMessages/batchSend`
+    - `cooldownMs` 参数防限流（默认 100ms）
+    - 用户 ID 格式：`dingtalk:{staffId}`，群组：`dingtalk:group:{conversationId}`
+  - `src/config.ts`：新增 `FeishuConfigSchema` + `DingTalkConfigSchema` + 7 个环境变量映射
+  - `src/index.ts`：多渠道管理员统一收集 + 飞书/钉钉条件注册 + 启动日志扩展
+  - `src/logger.ts`：redact 新增 `appSecret`、`encryptKey`、`verificationToken` 等敏感字段
+  - 新增依赖：`@larksuiteoapi/node-sdk@1.59.0`（生产依赖 10 → 11，远低于 50 上限）
+  - 单元测试：35 个新增测试（feishu-channel 20 + dingtalk-channel 15），总计 158 tests
+
+### Changed
+
+- `src/channels/telegram.ts`：提取 `splitMessage` 到 `message-utils.ts`，改为导入
+
 - **Phase 2: Apple Container 支持** — macOS 原生容器运行时
   - `src/runner-types.ts`：IRunner 接口（ContainerRunner/AppleContainerRunner/LocalRunner 共用）
   - `src/apple-container-runner.ts`：通过 `container` CLI 管理容器生命周期，VM 级隔离

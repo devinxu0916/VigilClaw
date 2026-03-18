@@ -26,6 +26,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@huggingface/transformers": "^3.8.1",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "better-sqlite3": "^11.8.0",
     "cron-parser": "^5.5.0",
     "dockerode": "^4.0.4",

@@ -15,6 +15,8 @@ import { TaskScheduler } from './task-scheduler.js';
 import { RateLimiter } from './rate-limiter.js';
 import { Router } from './router.js';
 import { TelegramChannel } from './channels/telegram.js';
+import { FeishuChannel } from './channels/feishu.js';
+import { DingTalkChannel } from './channels/dingtalk.js';
 import { startHealthServer } from './health.js';
 import { ClaudeProvider, calculateCost } from './provider/claude.js';
 import { parseProviderModel, createProvider, getCheapModel } from './provider/factory.js';
@@ -155,8 +157,20 @@ async function main(): Promise<void> {
 
   const skillRegistry = new SkillRegistry(db);
   router.setSkillRegistry(skillRegistry);
+
+  // 管理员统一收集（支持多渠道）
+  const adminUsers: string[] = [];
   if (config.telegram.allowedUsers.length > 0) {
-    router.setAdminUsers(config.telegram.allowedUsers.map((id) => `telegram:${id}`));
+    adminUsers.push(...config.telegram.allowedUsers.map((id) => `telegram:${id}`));
+  }
+  if (config.feishu?.enabled && config.feishu.allowedUsers.length > 0) {
+    adminUsers.push(...config.feishu.allowedUsers.map((id) => `feishu:${id}`));
+  }
+  if (config.dingtalk?.enabled && config.dingtalk.allowedUsers.length > 0) {
+    adminUsers.push(...config.dingtalk.allowedUsers.map((id) => `dingtalk:${id}`));
+  }
+  if (adminUsers.length > 0) {
+    router.setAdminUsers(adminUsers);
   }
 
   const channels: IChannel[] = [];
@@ -168,9 +182,37 @@ async function main(): Promise<void> {
     channels.push(telegram);
   }
 
+  if (config.feishu?.enabled) {
+    const feishu = new FeishuChannel(config.feishu);
+    feishu.onMessage((msg) => router.handleMessage(msg));
+    router.registerChannel(feishu);
+    channels.push(feishu);
+  }
+
+  if (config.dingtalk?.enabled) {
+    const dingtalk = new DingTalkChannel(config.dingtalk);
+    dingtalk.onMessage((msg) => router.handleMessage(msg));
+    router.registerChannel(dingtalk);
+    channels.push(dingtalk);
+  }
+
   for (const channel of channels) {
     await channel.start();
   }
+
+  taskScheduler.setChannelRegistry({
+    async sendToUser(userId: string, groupId: string | null, text: string): Promise<void> {
+      for (const channel of channels) {
+        try {
+          await channel.sendMessage(userId, groupId ?? undefined, text);
+          return;
+        } catch (err) {
+          logger.error({ err, channel: channel.name }, 'Failed to send scheduled task reply');
+        }
+      }
+    },
+  });
+  router.setTaskScheduler(taskScheduler);
 
   taskScheduler.start();
 
@@ -196,6 +238,8 @@ async function main(): Promise<void> {
   logger.info(
     {
       telegram: config.telegram.enabled,
+      feishu: config.feishu?.enabled ?? false,
+      dingtalk: config.dingtalk?.enabled ?? false,
       docker: runtimeType !== 'local',
       maxConcurrent: config.maxConcurrentContainers,
       model: config.provider.claude.model,
