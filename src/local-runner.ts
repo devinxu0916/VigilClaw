@@ -112,6 +112,6 @@ export class LocalRunner implements IRunner {
   }
 
   async drainAll(_timeoutMs: number): Promise<void> {
-    return;
+    // LocalRunner has no containers to drain
   }
 }

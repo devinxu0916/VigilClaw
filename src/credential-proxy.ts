@@ -114,7 +114,7 @@ export class CredentialProxy {
     }
 
     if (req.headers['accept']) {
-      headers['accept'] = req.headers['accept'] as string;
+      headers['accept'] = req.headers['accept'];
     }
 
     const proxyReq = https.request(targetUrl, {

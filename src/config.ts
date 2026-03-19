@@ -144,7 +144,6 @@ function loadConfigFile(filePath: string): Record<string, unknown> {
 }
 
 function loadEnvConfig(): Record<string, unknown> {
-  const prefix = 'VIGILCLAW_';
   const result: Record<string, unknown> = {};
 
   // 直接映射：环境变量名 → 配置路径

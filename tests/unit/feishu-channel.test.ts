@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
@@ -155,7 +155,7 @@ describe('FeishuChannel', () => {
 
     expect(mockMessageCreate).toHaveBeenCalledTimes(2);
     // 第二次调用应为纯文本
-    const secondCall = (mockMessageCreate as Mock).mock.calls[1] as Array<{
+    const secondCall = mockMessageCreate.mock.calls[1] as Array<{
       data: { msg_type: string };
     }>;
     expect(secondCall[0]!.data.msg_type).toBe('text');

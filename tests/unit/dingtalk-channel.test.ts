@@ -41,7 +41,7 @@ class MockWebSocket {
 
   addEventListener(event: string, handler: (ev: unknown) => void): void {
     if (!this.eventHandlers[event]) this.eventHandlers[event] = [];
-    this.eventHandlers[event]!.push(handler);
+    this.eventHandlers[event]?.push(handler);
   }
 
   send(data: string): void {

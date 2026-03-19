@@ -105,7 +105,8 @@ export class OpenAIProvider implements IProvider {
 
     for (const msg of messages) {
       if (msg.role === 'system') continue;
-      result.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+      const role: 'user' | 'assistant' = msg.role === 'assistant' ? 'assistant' : 'user';
+      result.push({ role, content: msg.content });
     }
 
     return result;

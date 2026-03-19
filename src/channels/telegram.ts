@@ -82,7 +82,7 @@ export class TelegramChannel implements IChannel {
       await this.bot.api.setWebhook(this.config.webhookUrl);
       logger.info({ url: this.config.webhookUrl }, 'Telegram bot started (webhook)');
     } else {
-      this.bot.start({
+      void this.bot.start({
         onStart: () => logger.info('Telegram bot started (polling)'),
       });
     }

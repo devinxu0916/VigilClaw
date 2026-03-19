@@ -52,7 +52,7 @@ export class OllamaProvider implements IProvider {
             type: 'tool_use',
             id: toolCall.id,
             name: toolCall.function.name,
-            input: JSON.parse(toolCall.function.arguments || '{}'),
+            input: JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>,
           });
         }
       }
@@ -87,7 +87,6 @@ export class OllamaProvider implements IProvider {
 
     let currentToolId = '';
     let currentToolName = '';
-    let toolJsonBuffer = '';
 
     for await (const chunk of stream) {
       const choice = chunk.choices[0];
@@ -109,7 +108,6 @@ export class OllamaProvider implements IProvider {
             }
 
             if (toolCall.function?.arguments) {
-              toolJsonBuffer += toolCall.function.arguments;
               yield { type: 'tool_input_delta', partialJson: toolCall.function.arguments };
             }
           }
@@ -120,7 +118,6 @@ export class OllamaProvider implements IProvider {
         yield { type: 'block_stop' };
         currentToolId = '';
         currentToolName = '';
-        toolJsonBuffer = '';
       }
     }
 

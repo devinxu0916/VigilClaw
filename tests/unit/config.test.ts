@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig, ConfigSchema } from '../../src/config.js';
+import { ConfigSchema } from '../../src/config.js';
 
 describe('ConfigSchema', () => {
   it('should require masterKey', () => {

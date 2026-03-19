@@ -18,15 +18,15 @@ import { TelegramChannel } from './channels/telegram.js';
 import { FeishuChannel } from './channels/feishu.js';
 import { DingTalkChannel } from './channels/dingtalk.js';
 import { startHealthServer } from './health.js';
-import { ClaudeProvider, calculateCost } from './provider/claude.js';
-import { parseProviderModel, createProvider, getCheapModel } from './provider/factory.js';
+import { ClaudeProvider } from './provider/claude.js';
+import { createProvider } from './provider/factory.js';
 import type { ProviderType } from './provider/factory.js';
 import { ContextCompressor } from './context-compressor.js';
 import { Embedder } from './embedder.js';
 import { MemoryStore } from './memory-store.js';
 import { logger } from './logger.js';
 import type { IChannel } from './channels/types.js';
-import type { QueuedTask, TaskResult } from './types.js';
+import type { QueuedTask } from './types.js';
 
 async function main(): Promise<void> {
   logger.info('VigilClaw starting...');

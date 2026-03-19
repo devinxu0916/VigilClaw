@@ -90,7 +90,7 @@ export class ContainerRunner implements IRunner {
       await container.start();
       logger.info({ taskId: task.id, container: containerName, proxyPort }, 'Container started');
 
-      const waitPromise = container.wait();
+      const waitPromise = container.wait() as Promise<{ StatusCode: number }>;
       const resultPromise = waitForResult(ipcDir, task.id, this.config.taskTimeout);
 
       const result = await Promise.race([

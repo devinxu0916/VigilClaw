@@ -29,23 +29,25 @@ async function checkDocker(docker: Docker): Promise<boolean> {
 }
 
 export function startHealthServer(port: number, db: VigilClawDB, docker: Docker): http.Server {
-  const server = http.createServer(async (req, res) => {
-    if (req.url !== '/health') {
-      res.writeHead(404);
-      res.end();
-      return;
-    }
+  const server = http.createServer((req, res) => {
+    void (async () => {
+      if (req.url !== '/health') {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
 
-    const checks: HealthChecks = {
-      sqlite: checkSqlite(db),
-      docker: await checkDocker(docker),
-      uptime: process.uptime(),
-      memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
-    };
+      const checks: HealthChecks = {
+        sqlite: checkSqlite(db),
+        docker: await checkDocker(docker),
+        uptime: process.uptime(),
+        memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      };
 
-    const healthy = checks.sqlite && checks.docker;
-    res.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: healthy ? 'ok' : 'degraded', checks }));
+      const healthy = checks.sqlite && checks.docker;
+      res.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: healthy ? 'ok' : 'degraded', checks }));
+    })();
   });
 
   server.listen(port, '127.0.0.1', () => {

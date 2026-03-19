@@ -33,7 +33,7 @@ export class SkillRegistry {
 
     if (!m.name || typeof m.name !== 'string') errors.push('Missing or invalid "name"');
     if (!m.version || typeof m.version !== 'string') errors.push('Missing or invalid "version"');
-    else if (!SEMVER_REGEX.test(m.version as string)) errors.push('Version must be semver (x.y.z)');
+    else if (typeof m.version === 'string' && !SEMVER_REGEX.test(m.version)) errors.push('Version must be semver (x.y.z)');
     if (!m.description || typeof m.description !== 'string')
       errors.push('Missing or invalid "description"');
     if (!Array.isArray(m.permissions)) errors.push('Missing or invalid "permissions" array');

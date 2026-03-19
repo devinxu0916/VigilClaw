@@ -1,6 +1,5 @@
 import pino from 'pino';
-import type { ContainerRunner } from './container-runner.js';
-import type { QueuedTask, TaskResult } from './types.js';
+import type { QueuedTask } from './types.js';
 
 const logger = pino({ name: 'group-queue' });
 

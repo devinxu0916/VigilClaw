@@ -51,7 +51,7 @@ export function waitForResult(
           reject(new Error(`Failed to read result for task ${taskId}`));
         }
       } catch (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
 
