@@ -6,6 +6,24 @@
 
 ### Added
 
+- **Phase 2 P2: 自然语言命令（NL Command Bridge）**
+  - `src/command-bridge.ts`：CommandBridge 类 — per-task HTTP 桥接服务，类比 CredentialProxy
+    - 14 条系统路由：`/system/schedule/{list,create,remove,enable,disable}`、`/system/skill/{list,install,remove,enable,disable}`、`/system/model/switch`、`/system/budget/{check,set}`、`/system/context/clear`
+    - 基于绑定 userId 的 Admin 权限校验（复用 adminUsers 配置）
+    - `generateStubJs()`：生成 CJS stub 文件，占位符替换 TASK_ID/USER_ID/GROUP_ID
+    - `getSystemCommandsSkillInfo()`：返回 14 个系统工具定义，由 Router 自动注入每个任务
+  - `src/system-commands-stub/`：skill 参考文件（skill.json + index.js 模板）
+  - `src/router.ts`：自动将 system-commands skill 注入所有非命令任务（无需用户显式启用）
+  - `src/container-runner.ts` + `src/apple-container-runner.ts`：
+    - `setCommandBridge()` 方法接收桥接实例
+    - 任务启动时创建 per-task bridge 端口，生成并挂载 stub 到容器 `/skills/system-commands:ro`
+    - 注入 `COMMAND_BRIDGE_URL` 环境变量，任务结束后清理桥接
+  - `src/index.ts`：初始化 CommandBridge 并关联到容器运行时
+  - `container/agent-runner/src/tools/index.ts`：`loadSkillTools()` 扩展支持 `codePath` 字段
+  - `container/agent-runner/Dockerfile`：新增 `/skills` 目录（确保 bind mount 路径存在）
+  - 单元测试：`tests/unit/command-bridge.test.ts`（25 个新增测试），总计 196 tests
+  - 踩坑记录：`docs/devlog/004-CommandBridge集成踩坑记录.md`
+
 - **Phase 2 P2: 飞书 & 钉钉渠道接入**
   - `src/channels/message-utils.ts`：公共 `splitMessage()` 函数，供所有渠道共用
   - `src/channels/feishu.ts`：飞书渠道（`@larksuiteoapi/node-sdk` WSClient 长连接，无需公网 IP）
