@@ -1,0 +1,140 @@
+{
+  "name": "system-commands",
+  "version": "1.0.0",
+  "description": "内置系统管理工具，通过 CommandBridge 在宿主进程执行特权操作",
+  "permissions": [],
+  "tools": [
+    {
+      "name": "system_schedule_list",
+      "description": "列出当前用户的所有定时任务，包括 ID、cron 表达式、任务描述、启用状态和下次执行时间。",
+      "input_schema": { "type": "object", "properties": {}, "required": [] }
+    },
+    {
+      "name": "system_schedule_create",
+      "description": "为当前用户创建定时任务。cron_expression 为标准 5 字段 cron（分 时 日 月 周），例如：每天早9点=\"0 9 * * *\"，每周一早9点=\"0 9 * * 1\"，每5分钟=\"*/5 * * * *\"。task_prompt 为任务执行时发送给 AI 的提示词。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cron_expression": { "type": "string", "description": "标准 5 字段 cron 表达式" },
+          "task_prompt": { "type": "string", "description": "定时执行的任务描述" }
+        },
+        "required": ["cron_expression", "task_prompt"]
+      }
+    },
+    {
+      "name": "system_schedule_remove",
+      "description": "删除指定的定时任务。schedule_id 可以是完整 UUID 或其前缀（至少 4 位）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "schedule_id": { "type": "string", "description": "要删除的任务 ID 或 ID 前缀" }
+        },
+        "required": ["schedule_id"]
+      }
+    },
+    {
+      "name": "system_schedule_enable",
+      "description": "启用指定的定时任务，使其在下次到期时执行。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "schedule_id": { "type": "string", "description": "要启用的任务 ID 或 ID 前缀" }
+        },
+        "required": ["schedule_id"]
+      }
+    },
+    {
+      "name": "system_schedule_disable",
+      "description": "禁用指定的定时任务，暂停其执行但保留记录。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "schedule_id": { "type": "string", "description": "要禁用的任务 ID 或 ID 前缀" }
+        },
+        "required": ["schedule_id"]
+      }
+    },
+    {
+      "name": "system_skill_list",
+      "description": "列出所有已安装的 Skill，包括名称、版本和启用状态。",
+      "input_schema": { "type": "object", "properties": {}, "required": [] }
+    },
+    {
+      "name": "system_skill_install",
+      "description": "安装新的 Skill（需要管理员权限）。source_path 为宿主机上 Skill 目录的绝对路径。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "source_path": { "type": "string", "description": "Skill 目录的绝对路径" }
+        },
+        "required": ["source_path"]
+      }
+    },
+    {
+      "name": "system_skill_remove",
+      "description": "卸载已安装的 Skill（需要管理员权限）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "skill_name": { "type": "string", "description": "要卸载的 Skill 名称" }
+        },
+        "required": ["skill_name"]
+      }
+    },
+    {
+      "name": "system_skill_enable",
+      "description": "启用已安装的 Skill（需要管理员权限）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "skill_name": { "type": "string", "description": "要启用的 Skill 名称" }
+        },
+        "required": ["skill_name"]
+      }
+    },
+    {
+      "name": "system_skill_disable",
+      "description": "禁用已安装的 Skill（需要管理员权限）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "skill_name": { "type": "string", "description": "要禁用的 Skill 名称" }
+        },
+        "required": ["skill_name"]
+      }
+    },
+    {
+      "name": "system_model_switch",
+      "description": "切换当前用户使用的 AI 模型。支持别名：sonnet、haiku、opus、gpt4o、gpt4o-mini、llama3、deepseek，或完整模型标识如 \"claude:claude-sonnet-4-5-20250929\"。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": { "type": "string", "description": "模型别名或完整模型标识" }
+        },
+        "required": ["model"]
+      }
+    },
+    {
+      "name": "system_budget_check",
+      "description": "查询当前用户的预算设置和今日/本月消耗情况（单位：美元）。",
+      "input_schema": { "type": "object", "properties": {}, "required": [] }
+    },
+    {
+      "name": "system_budget_set",
+      "description": "设置当前用户的日/月预算上限（单位：美元）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "day_limit": { "type": "number", "description": "日预算上限（美元）" },
+          "month_limit": { "type": "number", "description": "月预算上限（美元），省略时默认为日预算×30" }
+        },
+        "required": ["day_limit"]
+      }
+    },
+    {
+      "name": "system_context_clear",
+      "description": "清空当前会话的对话上下文，开始新的对话。",
+      "input_schema": { "type": "object", "properties": {}, "required": [] }
+    }
+  ]
+}

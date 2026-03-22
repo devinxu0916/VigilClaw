@@ -23,7 +23,7 @@
 - [x] 技术方案文档（4 篇全部产出） → [技术方案索引](../architecture/VigilClaw-技术方案.md)
 - [x] 调研报告（4 篇） → [research/](../research/)
 - [x] 项目脚手架（pnpm + TypeScript + ESLint + Vitest）
-- [ ] Git 仓库初始化 + CI 配置
+- [x] Git 仓库初始化 + CI 配置
 - [x] Docker Agent Runner 镜像 Dockerfile
 
 ### 验收标准
@@ -31,7 +31,7 @@
 - [x] `pnpm typecheck` 通过（零错误）
 - [x] `pnpm test` 通过（4/4 测试）
 - [x] `pnpm build` 通过（编译到 dist/）
-- [ ] `pnpm lint` 无错误（ESLint flat config 待调通）
+- [x] `pnpm lint` 无错误（ESLint flat config 待调通）
 - [x] Agent Runner Dockerfile 已创建
 
 ---

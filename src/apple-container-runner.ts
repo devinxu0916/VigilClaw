@@ -5,6 +5,7 @@ import path from 'node:path';
 import pino from 'pino';
 import type { DockerConfig } from './config.js';
 import type { CredentialProxy } from './credential-proxy.js';
+import { CommandBridge } from './command-bridge.js';
 import type { IRunner } from './runner-types.js';
 import type { QueuedTask, TaskResult } from './types.js';
 import { prepareIpcDir, writeTaskInput, readTaskResult, cleanupIpcDir } from './ipc.js';
@@ -16,11 +17,17 @@ const logger = pino({ name: 'apple-container-runner' });
 const CONTAINER_CLI = 'container';
 
 export class AppleContainerRunner implements IRunner {
+  private commandBridge?: CommandBridge;
+
   constructor(
     private config: DockerConfig,
     private credentialProxy: CredentialProxy,
     private dataDir: string,
   ) {}
+
+  setCommandBridge(bridge: CommandBridge): void {
+    this.commandBridge = bridge;
+  }
 
   private async getHostIP(): Promise<string> {
     try {
@@ -54,6 +61,24 @@ export class AppleContainerRunner implements IRunner {
     const proxyHost = await this.getHostIP();
     const proxyUrl = `http://${proxyHost}:${proxyPort}`;
 
+    // Start CommandBridge and generate system-commands stub
+    let bridgePort: number | undefined;
+    let stubDir: string | undefined;
+    if (this.commandBridge) {
+      bridgePort = await this.commandBridge.createBridgeForTask(
+        task.id,
+        task.userId,
+        task.groupId,
+      );
+      stubDir = path.join(ipcDir, 'system-commands-stub');
+      fs.mkdirSync(stubDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(stubDir, 'index.js'),
+        CommandBridge.generateStubJs(task.id, task.userId, task.groupId),
+        'utf-8',
+      );
+    }
+
     writeTaskInput(ipcDir, {
       taskId: task.id,
       userId: task.userId,
@@ -67,8 +92,10 @@ export class AppleContainerRunner implements IRunner {
     });
 
     const containerName = `vigilclaw-${task.id.slice(0, 12)}`;
+    const bridgeUrl =
+      bridgePort !== undefined ? `http://${proxyHost}:${bridgePort}` : undefined;
 
-    const args = this.buildRunArgs(containerName, task, ipcDir, proxyUrl);
+    const args = this.buildRunArgs(containerName, task, ipcDir, proxyUrl, stubDir, bridgeUrl);
 
     try {
       await execFile(CONTAINER_CLI, args, { timeout: 10000 });
@@ -102,6 +129,9 @@ export class AppleContainerRunner implements IRunner {
     } finally {
       await this.cleanup(containerName);
       this.credentialProxy.destroyProxyForTask(task.id).catch(() => {});
+      if (this.commandBridge) {
+        await this.commandBridge.destroyBridgeForTask(task.id);
+      }
       cleanupIpcDir(ipcDir);
     }
   }
@@ -138,7 +168,14 @@ export class AppleContainerRunner implements IRunner {
     }
   }
 
-  private buildRunArgs(name: string, task: QueuedTask, ipcDir: string, proxyUrl: string): string[] {
+  private buildRunArgs(
+    name: string,
+    task: QueuedTask,
+    ipcDir: string,
+    proxyUrl: string,
+    stubDir?: string,
+    bridgeUrl?: string,
+  ): string[] {
     const memoryMB = Math.floor(this.config.memoryLimit / (1024 * 1024));
     const cpus = this.config.cpuQuota / this.config.cpuPeriod;
 
@@ -162,16 +199,25 @@ export class AppleContainerRunner implements IRunner {
       `${ipcDir}:/ipc:rw`,
     ];
 
+    if (bridgeUrl) {
+      args.push('--env', `COMMAND_BRIDGE_URL=${bridgeUrl}`);
+    }
+
     if (task.workspaceDir) {
       validateMountPath(task.workspaceDir);
       args.push('--volume', `${task.workspaceDir}:/workspace:rw`);
     }
 
-    if (task.skills && task.skills.length > 0) {
+    const hasUserSkills = task.skills?.some((s) => s.codePath !== 'built-in') ?? false;
+    if (hasUserSkills) {
       const skillsDir = path.join(process.env.HOME ?? '~', '.config', 'vigilclaw', 'skills');
       if (fs.existsSync(skillsDir)) {
         args.push('--volume', `${skillsDir}:/skills:ro`);
       }
+    }
+
+    if (stubDir) {
+      args.push('--volume', `${stubDir}:/skills/system-commands:ro`);
     }
 
     args.push(this.config.appleImage, 'node', '/app/index.js');

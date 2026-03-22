@@ -8,6 +8,7 @@ import { SecurityLogger } from './security-logger.js';
 import { ContainerRunner } from './container-runner.js';
 import { LocalRunner } from './local-runner.js';
 import { AppleContainerRunner } from './apple-container-runner.js';
+import { CommandBridge } from './command-bridge.js';
 import type { IRunner } from './runner-types.js';
 import { GroupQueue } from './group-queue.js';
 import { SkillRegistry } from './skill-registry.js';
@@ -171,6 +172,20 @@ async function main(): Promise<void> {
   }
   if (adminUsers.length > 0) {
     router.setAdminUsers(adminUsers);
+  }
+
+  // Create CommandBridge for container runners (not LocalRunner)
+  const adminUsersSet = new Set(adminUsers);
+  if (runtimeType !== 'local') {
+    const commandBridge = new CommandBridge(
+      db,
+      skillRegistry,
+      taskScheduler,
+      sessionManager,
+      adminUsersSet,
+    );
+    containerRunner.setCommandBridge(commandBridge);
+    appleRunner.setCommandBridge(commandBridge);
   }
 
   const channels: IChannel[] = [];

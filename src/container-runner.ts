@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import pino from 'pino';
 import type { DockerConfig } from './config.js';
 import type { CredentialProxy } from './credential-proxy.js';
+import { CommandBridge } from './command-bridge.js';
 import type { QueuedTask, TaskResult } from './types.js';
 import { validateMountPath } from './mount-security.js';
 import {
@@ -25,8 +26,13 @@ export class ContainerRunner implements IRunner {
     private config: DockerConfig,
     private credentialProxy: CredentialProxy,
     private dataDir: string,
+    private commandBridge?: CommandBridge,
   ) {
     this.docker = new Docker({ socketPath: config.socketPath });
+  }
+
+  setCommandBridge(bridge: CommandBridge): void {
+    this.commandBridge = bridge;
   }
 
   async runTask(task: QueuedTask): Promise<TaskResult> {
@@ -37,6 +43,24 @@ export class ContainerRunner implements IRunner {
       task.provider || 'anthropic',
     );
     const proxyUrl = `http://host.docker.internal:${proxyPort}`;
+
+    // Start CommandBridge and generate system-commands stub
+    let bridgePort: number | undefined;
+    let stubDir: string | undefined;
+    if (this.commandBridge) {
+      bridgePort = await this.commandBridge.createBridgeForTask(
+        task.id,
+        task.userId,
+        task.groupId,
+      );
+      stubDir = path.join(ipcDir, 'system-commands-stub');
+      fs.mkdirSync(stubDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(stubDir, 'index.js'),
+        CommandBridge.generateStubJs(task.id, task.userId, task.groupId),
+        'utf-8',
+      );
+    }
 
     writeTaskInput(ipcDir, {
       taskId: task.id,
@@ -58,11 +82,23 @@ export class ContainerRunner implements IRunner {
       binds.push(`${task.workspaceDir}:/workspace:rw`);
     }
 
-    if (task.skills && task.skills.length > 0) {
+    // Mount user skills dir (if any user skills exist)
+    const hasUserSkills = task.skills?.some((s) => s.codePath !== 'built-in') ?? false;
+    if (hasUserSkills) {
       const skillsDir = path.join(process.env.HOME ?? '~', '.config', 'vigilclaw', 'skills');
       if (fs.existsSync(skillsDir)) {
         binds.push(`${skillsDir}:/skills:ro`);
       }
+    }
+
+    // Mount system-commands stub (always, when bridge is available)
+    if (stubDir) {
+      binds.push(`${stubDir}:/skills/system-commands:ro`);
+    }
+
+    const env = [`TASK_ID=${task.id}`, `CREDENTIAL_PROXY_URL=${proxyUrl}`];
+    if (bridgePort !== undefined) {
+      env.push(`COMMAND_BRIDGE_URL=http://host.docker.internal:${bridgePort}`);
     }
 
     let container: Docker.Container | undefined;
@@ -72,7 +108,7 @@ export class ContainerRunner implements IRunner {
         name: containerName,
         Image: this.config.image,
         Cmd: ['node', '/app/index.js'],
-        Env: [`TASK_ID=${task.id}`, `CREDENTIAL_PROXY_URL=${proxyUrl}`],
+        Env: env,
         HostConfig: {
           AutoRemove: false,
           ReadonlyRootfs: true,
@@ -137,6 +173,9 @@ export class ContainerRunner implements IRunner {
         } catch {}
       }
       await this.credentialProxy.destroyProxyForTask(task.id);
+      if (this.commandBridge) {
+        await this.commandBridge.destroyBridgeForTask(task.id);
+      }
       cleanupIpcDir(ipcDir);
     }
   }

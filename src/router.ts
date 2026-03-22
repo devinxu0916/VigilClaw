@@ -1,6 +1,7 @@
 import { logger } from './logger.js';
 import { parseProviderModel, formatProviderModel } from './provider/factory.js';
 import { routeModel } from './model-router.js';
+import { CommandBridge } from './command-bridge.js';
 import type { VigilClawDB } from './db.js';
 import type { CostGuard } from './cost-guard.js';
 import type { SessionManager } from './session-manager.js';
@@ -106,6 +107,8 @@ export class Router {
     };
 
     const enabledSkills = this.skillRegistry?.getEnabledSkillInfos() ?? [];
+    const systemSkill = CommandBridge.getSystemCommandsSkillInfo();
+    const allSkills = [systemSkill, ...enabledSkills];
 
     this.groupQueue.enqueue({
       id: taskId,
@@ -115,7 +118,7 @@ export class Router {
       provider,
       model,
       tools: ['bash', 'read', 'write', 'edit'],
-      skills: enabledSkills.length > 0 ? enabledSkills : undefined,
+      skills: allSkills,
       createdAt: new Date(),
       replyFn,
     });
