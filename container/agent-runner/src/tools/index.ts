@@ -27,7 +27,10 @@ export function loadSkillTools(skills: NonNullable<TaskInput['skills']>): Tool[]
   const tools: Tool[] = [];
 
   for (const skill of skills) {
-    const skillDir = `/skills/${skill.name}`;
+    const skillDir =
+      skill.codePath && skill.codePath !== 'built-in'
+        ? skill.codePath
+        : `/skills/${skill.name}`;
     const entryPath = path.join(skillDir, 'index.js');
 
     if (!fs.existsSync(entryPath)) {

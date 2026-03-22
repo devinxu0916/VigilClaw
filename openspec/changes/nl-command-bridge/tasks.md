@@ -30,4 +30,4 @@
 - [x] 4.3 运行 `pnpm typecheck` 确认无 TypeScript 错误
 - [x] 4.4 运行 `pnpm lint` 确认无 lint 错误
 - [x] 4.5 运行 `pnpm test` 确认所有测试通过（覆盖率阈值：语句 80% / 分支 75% / 函数 80% / 行 80%）
-- [ ] 4.6 本地 `pnpm dev` + Docker 环境集成验证：发送"帮我列一下定时任务"，确认 Agent 调用 `system_schedule_list` 并正确返回结果
+- [x] 4.6 本地 `pnpm dev` + Apple Container 环境集成验证：修复 Dockerfile 缺少 `/skills` 目录导致挂载失败的问题，重建镜像后验证通过

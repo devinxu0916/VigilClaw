@@ -12,7 +12,7 @@ RUN apk del --purge apk-tools 2>/dev/null; rm -rf /var/cache/apk/* /tmp/* /root/
 WORKDIR /app
 COPY --from=builder --chown=agent:agent /build/dist/ ./
 COPY --from=builder /build/node_modules/ ./node_modules/
-RUN mkdir -p /ipc/input /ipc/output /workspace /tmp && \
-    chown -R agent:agent /ipc /workspace /tmp
+RUN mkdir -p /ipc/input /ipc/output /workspace /tmp /skills && \
+    chown -R agent:agent /ipc /workspace /tmp /skills
 USER agent
 ENTRYPOINT ["node", "/app/index.js"]
