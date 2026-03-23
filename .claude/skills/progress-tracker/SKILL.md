@@ -63,7 +63,28 @@ Read `docs/planning/ROADMAP.md` and apply matching updates:
      ```
 3. Update the "最后更新" date at top of ROADMAP
 
-### Step 3: Update CHANGELOG
+### Step 3: Update README Roadmap
+
+Read `README.md` and update the `## 🗺️ Roadmap` table to match the current phase status.
+Reference the structure spec in `references/readme-roadmap.md`.
+
+**Sub-item completed** — append to the matching Phase row's content column:
+```markdown
+# Before
+| Phase 2: 差异化能力 | 🔧 进行中 | 多模型 ✅ · Web Dashboard ⏳ |
+
+# After (new sub-item done)
+| Phase 2: 差异化能力 | 🔧 进行中 | 多模型 ✅ · Web Dashboard ✅ |
+```
+
+**Phase fully completed** — change the status column:
+```markdown
+| Phase 2: 差异化能力 | ✅ 完成 | 多模型 ✅ · 多渠道 ✅ · ... |
+```
+
+Only update README when ROADMAP was also updated in Step 2. Keep changes minimal — only the status column and content column of affected rows.
+
+### Step 4: Update CHANGELOG
 
 Append completed work under `## [Unreleased]` in `docs/planning/CHANGELOG.md`:
 
@@ -79,12 +100,13 @@ Use standard categories: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `
 
 Deduplication rule: if the same item already exists under `[Unreleased]`, skip it.
 
-### Step 4: Confirm
+### Step 5: Confirm
 
 After updating, briefly report to the user:
 ```
 📊 进度已同步:
 - ROADMAP: [what was updated]
+- README: [what was updated]
 - CHANGELOG: [what was added]
 ```
 
