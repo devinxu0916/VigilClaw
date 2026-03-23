@@ -6,6 +6,8 @@ import pino from 'pino';
 import type { DockerConfig } from './config.js';
 import type { CredentialProxy } from './credential-proxy.js';
 import { CommandBridge } from './command-bridge.js';
+import { SearchBridge } from './search-bridge.js';
+import { generateWebSearchStubJs } from './skills/web-search-stub.js';
 import type { IRunner } from './runner-types.js';
 import type { QueuedTask, TaskResult } from './types.js';
 import { prepareIpcDir, writeTaskInput, readTaskResult, cleanupIpcDir } from './ipc.js';
@@ -18,6 +20,7 @@ const CONTAINER_CLI = 'container';
 
 export class AppleContainerRunner implements IRunner {
   private commandBridge?: CommandBridge;
+  private searchBridge?: SearchBridge;
 
   constructor(
     private config: DockerConfig,
@@ -27,6 +30,10 @@ export class AppleContainerRunner implements IRunner {
 
   setCommandBridge(bridge: CommandBridge): void {
     this.commandBridge = bridge;
+  }
+
+  setSearchBridge(bridge: SearchBridge): void {
+    this.searchBridge = bridge;
   }
 
   private async getHostIP(): Promise<string> {
@@ -79,7 +86,22 @@ export class AppleContainerRunner implements IRunner {
       );
     }
 
-    // Rewrite system-commands codePath to container-internal IPC path.
+    // Start SearchBridge and generate web-search stub
+    let searchBridgePort: number | undefined;
+    let searchStubDir: string | undefined;
+    const hasWebSearch = task.skills?.some((s) => s.name === 'web-search') ?? false;
+    if (this.searchBridge && hasWebSearch) {
+      searchBridgePort = await this.searchBridge.createBridgeForTask(task.id);
+      searchStubDir = path.join(ipcDir, 'web-search-stub');
+      fs.mkdirSync(searchStubDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(searchStubDir, 'index.js'),
+        generateWebSearchStubJs(),
+        'utf-8',
+      );
+    }
+
+    // Rewrite system-commands and web-search codePath to container-internal IPC path.
     // Avoids a separate bind mount and conflicts with --read-only rootfs on Apple Container.
     writeTaskInput(ipcDir, {
       taskId: task.id,
@@ -90,18 +112,24 @@ export class AppleContainerRunner implements IRunner {
       model: task.model,
       maxTokens: 4096,
       tools: task.tools,
-      skills: task.skills?.map((s) =>
-        s.name === 'system-commands' && stubDir
-          ? { ...s, codePath: '/ipc/system-commands-stub' }
-          : s,
-      ),
+      skills: task.skills?.map((s) => {
+        if (s.name === 'system-commands' && stubDir) {
+          return { ...s, codePath: '/ipc/system-commands-stub' };
+        }
+        if (s.name === 'web-search' && searchStubDir) {
+          return { ...s, codePath: '/ipc/web-search-stub' };
+        }
+        return s;
+      }),
     });
 
     const containerName = `vigilclaw-${task.id.slice(0, 12)}`;
     const bridgeUrl =
       bridgePort !== undefined ? `http://${proxyHost}:${bridgePort}` : undefined;
+    const searchBridgeUrl =
+      searchBridgePort !== undefined ? `http://${proxyHost}:${searchBridgePort}` : undefined;
 
-    const args = this.buildRunArgs(containerName, task, ipcDir, proxyUrl, bridgeUrl);
+    const args = this.buildRunArgs(containerName, task, ipcDir, proxyUrl, bridgeUrl, searchBridgeUrl);
 
     try {
       await execFile(CONTAINER_CLI, args, { timeout: 10000 });
@@ -137,6 +165,9 @@ export class AppleContainerRunner implements IRunner {
       this.credentialProxy.destroyProxyForTask(task.id).catch(() => {});
       if (this.commandBridge) {
         await this.commandBridge.destroyBridgeForTask(task.id);
+      }
+      if (this.searchBridge) {
+        await this.searchBridge.destroyBridgeForTask(task.id);
       }
       cleanupIpcDir(ipcDir);
     }
@@ -180,6 +211,7 @@ export class AppleContainerRunner implements IRunner {
     ipcDir: string,
     proxyUrl: string,
     bridgeUrl?: string,
+    searchBridgeUrl?: string,
   ): string[] {
     const memoryMB = Math.floor(this.config.memoryLimit / (1024 * 1024));
     const cpus = this.config.cpuQuota / this.config.cpuPeriod;
@@ -206,6 +238,10 @@ export class AppleContainerRunner implements IRunner {
 
     if (bridgeUrl) {
       args.push('--env', `COMMAND_BRIDGE_URL=${bridgeUrl}`);
+    }
+
+    if (searchBridgeUrl) {
+      args.push('--env', `SEARCH_BRIDGE_URL=${searchBridgeUrl}`);
     }
 
     if (task.workspaceDir) {

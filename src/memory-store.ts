@@ -3,7 +3,7 @@ import type { VigilClawDB } from './db.js';
 import type { IProvider } from './provider/types.js';
 import type { Embedder } from './embedder.js';
 
-const EXTRACTION_MODEL = 'claude-haiku-3-5-20250929';
+const EXTRACTION_MODEL = 'claude-haiku-4-5-20251001';
 
 const EXTRACTION_SYSTEM = [
   'Analyze this conversation exchange and extract facts worth remembering for future conversations.',

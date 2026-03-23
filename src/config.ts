@@ -102,6 +102,10 @@ export const RateLimitConfigSchema = z.object({
   global: z.number().default(100),
 });
 
+export const SearchConfigSchema = z.object({
+  braveApiKey: z.string().optional(),
+});
+
 export const ConfigSchema = z.object({
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   dbPath: z.string().default('./data/vigilclaw.db'),
@@ -119,9 +123,11 @@ export const ConfigSchema = z.object({
   maxConcurrentContainers: z.number().default(5),
   rateLimit: RateLimitConfigSchema.default({}),
   healthPort: z.number().default(9100),
+  search: SearchConfigSchema.default({}),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
+export type SearchConfig = z.infer<typeof SearchConfigSchema>;
 export type TelegramConfig = z.infer<typeof TelegramConfigSchema>;
 export type FeishuConfig = z.infer<typeof FeishuConfigSchema>;
 export type DingTalkConfig = z.infer<typeof DingTalkConfigSchema>;
@@ -179,6 +185,7 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_MAX_CONTEXT_TOKENS: ['session', 'maxContextTokens'],
     VIGILCLAW_RECENT_MESSAGES_KEEP: ['session', 'recentMessagesKeep'],
     VIGILCLAW_MEMORY_ENABLED: ['memory', 'enabled'],
+    BRAVE_SEARCH_API_KEY: ['search', 'braveApiKey'],
   };
 
   for (const [envKey, value] of Object.entries(process.env)) {

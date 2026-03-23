@@ -6,6 +6,7 @@ import type { ProviderType } from './provider/factory.js';
 import type { IRunner } from './runner-types.js';
 import { decrypt } from './crypto.js';
 import { logger } from './logger.js';
+import type { SearchBridge } from './search-bridge.js';
 
 const MAX_TURNS = 30;
 
@@ -13,12 +14,30 @@ const SYSTEM_PROMPT = `You are a helpful AI assistant. You can help users with v
 Keep responses concise and focused.`;
 
 export class LocalRunner implements IRunner {
+  private searchBridge?: SearchBridge;
+
   constructor(
     private db: VigilClawDB,
     private masterKey: Buffer,
   ) {}
 
+  setSearchBridge(bridge: SearchBridge): void {
+    this.searchBridge = bridge;
+  }
+
   async runTask(task: QueuedTask): Promise<TaskResult> {
+    const hasWebSearch = task.skills?.some((s) => s.name === 'web-search') ?? false;
+    if (hasWebSearch && this.searchBridge) {
+      // SearchBridge is available for direct function calls (search / fetchAndSummarize).
+      // LocalRunner does not currently execute tool calls — tool results are not injected
+      // into the conversation. This note exists so future tool-capable LocalRunner can use:
+      //   await this.searchBridge.search(query, count)
+      //   await this.searchBridge.fetchAndSummarize(url, prompt)
+      logger.debug({ taskId: task.id }, 'web-search skill requested; SearchBridge available for direct calls');
+    } else if (hasWebSearch) {
+      logger.warn({ taskId: task.id }, 'web-search skill requested but SearchBridge not configured');
+    }
+
     const providerType = (task.provider || 'claude') as ProviderType;
     const provider = await this.createProviderForTask(providerType);
 

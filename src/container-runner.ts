@@ -5,6 +5,8 @@ import pino from 'pino';
 import type { DockerConfig } from './config.js';
 import type { CredentialProxy } from './credential-proxy.js';
 import { CommandBridge } from './command-bridge.js';
+import { SearchBridge } from './search-bridge.js';
+import { generateWebSearchStubJs } from './skills/web-search-stub.js';
 import type { QueuedTask, TaskResult } from './types.js';
 import { validateMountPath } from './mount-security.js';
 import {
@@ -27,12 +29,17 @@ export class ContainerRunner implements IRunner {
     private credentialProxy: CredentialProxy,
     private dataDir: string,
     private commandBridge?: CommandBridge,
+    private searchBridge?: SearchBridge,
   ) {
     this.docker = new Docker({ socketPath: config.socketPath });
   }
 
   setCommandBridge(bridge: CommandBridge): void {
     this.commandBridge = bridge;
+  }
+
+  setSearchBridge(bridge: SearchBridge): void {
+    this.searchBridge = bridge;
   }
 
   async runTask(task: QueuedTask): Promise<TaskResult> {
@@ -62,8 +69,23 @@ export class ContainerRunner implements IRunner {
       );
     }
 
-    // Rewrite system-commands codePath to container-internal IPC path.
-    // Avoids a separate bind mount and conflicts with the read-only rootfs.
+    // Start SearchBridge and generate web-search stub (if skill is requested)
+    const hasWebSearch = task.skills?.some((s) => s.name === 'web-search') ?? false;
+    let searchBridgePort: number | undefined;
+    let webSearchStubDir: string | undefined;
+    if (this.searchBridge && hasWebSearch) {
+      searchBridgePort = await this.searchBridge.createBridgeForTask(task.id);
+      webSearchStubDir = path.join(ipcDir, 'web-search-stub');
+      fs.mkdirSync(webSearchStubDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(webSearchStubDir, 'index.js'),
+        generateWebSearchStubJs(),
+        'utf-8',
+      );
+    }
+
+    // Rewrite codePaths to container-internal IPC paths.
+    // Avoids separate bind mounts and conflicts with the read-only rootfs.
     writeTaskInput(ipcDir, {
       taskId: task.id,
       userId: task.userId,
@@ -73,11 +95,15 @@ export class ContainerRunner implements IRunner {
       model: task.model,
       maxTokens: 4096,
       tools: task.tools,
-      skills: task.skills?.map((s) =>
-        s.name === 'system-commands' && stubDir
-          ? { ...s, codePath: '/ipc/system-commands-stub' }
-          : s,
-      ),
+      skills: task.skills?.map((s) => {
+        if (s.name === 'system-commands' && stubDir) {
+          return { ...s, codePath: '/ipc/system-commands-stub' };
+        }
+        if (s.name === 'web-search' && webSearchStubDir) {
+          return { ...s, codePath: '/ipc/web-search-stub' };
+        }
+        return s;
+      }),
     });
 
     const containerName = `vigilclaw-${task.id.slice(0, 12)}`;
@@ -100,6 +126,9 @@ export class ContainerRunner implements IRunner {
     const env = [`TASK_ID=${task.id}`, `CREDENTIAL_PROXY_URL=${proxyUrl}`];
     if (bridgePort !== undefined) {
       env.push(`COMMAND_BRIDGE_URL=http://host.docker.internal:${bridgePort}`);
+    }
+    if (searchBridgePort !== undefined) {
+      env.push(`SEARCH_BRIDGE_URL=http://host.docker.internal:${searchBridgePort}`);
     }
 
     let container: Docker.Container | undefined;
@@ -176,6 +205,9 @@ export class ContainerRunner implements IRunner {
       await this.credentialProxy.destroyProxyForTask(task.id);
       if (this.commandBridge) {
         await this.commandBridge.destroyBridgeForTask(task.id);
+      }
+      if (this.searchBridge && hasWebSearch) {
+        await this.searchBridge.destroyBridgeForTask(task.id);
       }
       cleanupIpcDir(ipcDir);
     }

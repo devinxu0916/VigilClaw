@@ -9,6 +9,8 @@ import { ContainerRunner } from './container-runner.js';
 import { LocalRunner } from './local-runner.js';
 import { AppleContainerRunner } from './apple-container-runner.js';
 import { CommandBridge } from './command-bridge.js';
+import { SearchBridge } from './search-bridge.js';
+import { getWebSearchSkillInfo } from './skills/web-search-stub.js';
 import type { IRunner } from './runner-types.js';
 import { GroupQueue } from './group-queue.js';
 import { SkillRegistry } from './skill-registry.js';
@@ -159,6 +161,27 @@ async function main(): Promise<void> {
   const skillRegistry = new SkillRegistry(db);
   router.setSkillRegistry(skillRegistry);
 
+  // Register built-in web-search skill
+  const webSearchSkill = getWebSearchSkillInfo();
+  const existingWebSearch = db.getSkill('web-search');
+  if (!existingWebSearch) {
+    db.insertSkill({
+      name: webSearchSkill.name,
+      version: '1.0.0',
+      description: 'Search the web and fetch page content using Brave Search API',
+      manifest: JSON.stringify({
+        name: webSearchSkill.name,
+        version: '1.0.0',
+        description: 'Search the web and fetch page content using Brave Search API',
+        permissions: ['network'],
+        tools: webSearchSkill.tools,
+      }),
+      codePath: 'built-in',
+      installedBy: 'system',
+    });
+    logger.info('web-search skill registered');
+  }
+
   // 管理员统一收集（支持多渠道）
   const adminUsers: string[] = [];
   if (config.telegram.allowedUsers.length > 0) {
@@ -174,7 +197,7 @@ async function main(): Promise<void> {
     router.setAdminUsers(adminUsers);
   }
 
-  // Create CommandBridge for container runners (not LocalRunner)
+  // Create CommandBridge and SearchBridge for container runners (not LocalRunner)
   const adminUsersSet = new Set(adminUsers);
   if (runtimeType !== 'local') {
     const commandBridge = new CommandBridge(
@@ -186,6 +209,16 @@ async function main(): Promise<void> {
     );
     containerRunner.setCommandBridge(commandBridge);
     appleRunner.setCommandBridge(commandBridge);
+
+    const searchBridge = new SearchBridge(db, masterKey);
+    containerRunner.setSearchBridge(searchBridge);
+    appleRunner.setSearchBridge(searchBridge);
+    logger.info('SearchBridge initialized');
+  } else {
+    // LocalRunner also needs SearchBridge
+    const searchBridge = new SearchBridge(db, masterKey);
+    localRunner.setSearchBridge(searchBridge);
+    logger.info('SearchBridge initialized for LocalRunner');
   }
 
   const channels: IChannel[] = [];

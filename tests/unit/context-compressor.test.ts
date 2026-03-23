@@ -138,7 +138,7 @@ describe('ContextCompressor', () => {
     await compressor.compress('session1', msgs, 'user1');
 
     const chatCall = (provider.chat as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { messages: Array<{ content: string }> };
-    expect(chatCall.messages[0].content).toContain('Old summary');
+    expect(chatCall.messages[0]!.content).toContain('Old summary');
 
     expect(db.getContextSummary('session1')).toBe('Updated summary');
   });

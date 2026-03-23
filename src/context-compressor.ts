@@ -3,7 +3,7 @@ import type { VigilClawDB } from './db.js';
 import type { IProvider } from './provider/types.js';
 import type { Message } from './types.js';
 
-const SUMMARIZATION_MODEL = 'claude-haiku-3-5-20250929';
+const SUMMARIZATION_MODEL = 'claude-haiku-4-5-20251001';
 
 const SUMMARY_SYSTEM_PROMPT = `You are a conversation summarizer. Your job is to create a concise but thorough summary of a conversation.
 

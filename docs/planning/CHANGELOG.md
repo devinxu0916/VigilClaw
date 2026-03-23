@@ -6,6 +6,28 @@
 
 ### Added
 
+- **Phase 2 P2: Web Search Bridge** — 为容器内 Agent 提供安全的互联网搜索和页面抓取能力
+  - `src/search-bridge.ts`：SearchBridge 类 — per-task HTTP 桥接服务，按需启动/销毁
+    - `GET /search` 端点：代理 Brave Search API，返回格式化 Markdown 列表（标题 + URL + 描述 + extra snippets）
+    - `POST /fetch` 端点：抓取 URL → HTML→Markdown（`node-html-markdown`）→ Claude Haiku 摘要 → `[Source: <url>]\n\n<摘要>` 格式
+    - 私有 IP 拦截：RFC1918 + link-local 地址校验，拒绝并写入 `security_events` 表
+    - Brave API Key 双渠道管理：环境变量 `BRAVE_SEARCH_API_KEY` 优先，回退到 DB credentials（`/setkey brave-search`）
+    - LocalRunner 模式：直接函数调用接口（不启 HTTP 服务器）
+  - `src/skills/web-search-stub.ts`：动态生成 skill stub，注入 `SEARCH_BRIDGE_URL`
+    - `web_search` 工具：`{ query: string, count?: number }` → GET `/search`
+    - `web_fetch` 工具：`{ url: string, prompt?: string }` → POST `/fetch`
+  - `src/container-runner.ts` + `src/apple-container-runner.ts`：集成 SearchBridge
+    - 检测到 `web-search` skill 时启动 SearchBridge，动态写入 stub 到 `<ipcDir>/web-search-stub/`
+    - codePath 重写为 `/ipc/web-search-stub`，通过 `/ipc:rw` 挂载读取
+    - 任务结束后销毁 SearchBridge，释放端口
+  - `src/local-runner.ts`：LocalRunner 模式集成，直接函数调用
+  - `src/config.ts`：新增 `BRAVE_SEARCH_API_KEY` 环境变量读取
+  - `src/router.ts`：`/setkey` 命令支持 `brave-search` key name
+  - 新增依赖：`node-html-markdown`（生产依赖 11 → 12）
+  - 单元测试：`tests/unit/search-bridge.test.ts`（25 个新增测试），总计 221 tests
+  - OpenSpec 规范：新增 2 个 capability specs（`web-search-bridge` + `web-search-skill`）
+  - E2E 测试文档：`docs/E2E_TEST_WEB_SEARCH.md`
+
 - **Phase 2 P2: 自然语言命令（NL Command Bridge）**
   - `src/command-bridge.ts`：CommandBridge 类 — per-task HTTP 桥接服务，类比 CredentialProxy
     - 14 条系统路由：`/system/schedule/{list,create,remove,enable,disable}`、`/system/skill/{list,install,remove,enable,disable}`、`/system/model/switch`、`/system/budget/{check,set}`、`/system/context/clear`
@@ -126,6 +148,8 @@
 
 ### Fixed
 
+- **SearchBridge：Brave Search API 超时问题** — 在某些网络环境下（特别是 Apple Container 运行时），Brave Search API 调用在 10 秒超时限制内无法完成。将 `FETCH_TIMEOUT_MS` 从 10 秒增加到 30 秒，解决超时问题。E2E 测试通过。
+- **Memory/Context 模块：Haiku 模型版本不兼容** — `memory-store.ts` 和 `context-compressor.ts` 使用旧版本 `claude-haiku-3-5-20250929`，DeepSeek Anthropic API 代理不支持该模型，导致 500 错误。统一更新为 `claude-haiku-4-5-20251001`，与 `search-bridge.ts` 保持一致。
 - **CommandBridge / Apple Container：system-commands stub 挂载方案切换** — 原方案将 stub 挂载到 `/skills/system-commands:ro`，在 Apple Container（VM 型运行时）上与 `/skills:ro` 父挂载冲突，报错 "The volume is read only"（NSCocoaErrorDomain Code=642）。新方案：stub 写入 `<ipcDir>/system-commands-stub/`，TaskInput 中 codePath 重写为 `/ipc/system-commands-stub`，通过已有的 `/ipc:rw` 挂载读取，无需额外 bind mount，消除冲突。E2E 验证通过：Agent 收到自然语言请求后正确调用 `system_schedule_create` 等系统工具。
 
 - 摘要和记忆提取的 Haiku API 调用成本未被追踪 — 现在记录到 `api_calls` 表，`/cost` 命令可见
