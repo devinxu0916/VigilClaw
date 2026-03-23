@@ -16,7 +16,7 @@
   - `src/router.ts`：自动将 system-commands skill 注入所有非命令任务（无需用户显式启用）
   - `src/container-runner.ts` + `src/apple-container-runner.ts`：
     - `setCommandBridge()` 方法接收桥接实例
-    - 任务启动时创建 per-task bridge 端口，生成并挂载 stub 到容器 `/skills/system-commands:ro`
+    - 任务启动时创建 per-task bridge 端口，stub 写入 `<ipcDir>/system-commands-stub/`，codePath 重写为 `/ipc/system-commands-stub`（通过 `/ipc:rw` 挂载，无需额外 bind mount）
     - 注入 `COMMAND_BRIDGE_URL` 环境变量，任务结束后清理桥接
   - `src/index.ts`：初始化 CommandBridge 并关联到容器运行时
   - `container/agent-runner/src/tools/index.ts`：`loadSkillTools()` 扩展支持 `codePath` 字段
@@ -125,6 +125,8 @@
 - `container/agent-runner/src/react-loop.ts`：同上，从 taskInput.messages 中提取 system 消息合并到 system prompt
 
 ### Fixed
+
+- **CommandBridge / Apple Container：system-commands stub 挂载方案切换** — 原方案将 stub 挂载到 `/skills/system-commands:ro`，在 Apple Container（VM 型运行时）上与 `/skills:ro` 父挂载冲突，报错 "The volume is read only"（NSCocoaErrorDomain Code=642）。新方案：stub 写入 `<ipcDir>/system-commands-stub/`，TaskInput 中 codePath 重写为 `/ipc/system-commands-stub`，通过已有的 `/ipc:rw` 挂载读取，无需额外 bind mount，消除冲突。E2E 验证通过：Agent 收到自然语言请求后正确调用 `system_schedule_create` 等系统工具。
 
 - 摘要和记忆提取的 Haiku API 调用成本未被追踪 — 现在记录到 `api_calls` 表，`/cost` 命令可见
 - system role 消息（摘要/记忆）被 Claude provider 和 runner 过滤掉，LLM 完全看不到注入的上下文 — 现在自动合并到 system prompt
