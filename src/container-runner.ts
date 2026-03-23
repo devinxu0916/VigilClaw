@@ -62,6 +62,8 @@ export class ContainerRunner implements IRunner {
       );
     }
 
+    // Rewrite system-commands codePath to container-internal IPC path.
+    // Avoids a separate bind mount and conflicts with the read-only rootfs.
     writeTaskInput(ipcDir, {
       taskId: task.id,
       userId: task.userId,
@@ -71,7 +73,11 @@ export class ContainerRunner implements IRunner {
       model: task.model,
       maxTokens: 4096,
       tools: task.tools,
-      skills: task.skills,
+      skills: task.skills?.map((s) =>
+        s.name === 'system-commands' && stubDir
+          ? { ...s, codePath: '/ipc/system-commands-stub' }
+          : s,
+      ),
     });
 
     const containerName = `vigilclaw-${task.id.slice(0, 12)}`;
@@ -82,18 +88,13 @@ export class ContainerRunner implements IRunner {
       binds.push(`${task.workspaceDir}:/workspace:rw`);
     }
 
-    // Mount user skills dir (if any user skills exist)
+    // Mount user skills dir (if any non-built-in skills exist)
     const hasUserSkills = task.skills?.some((s) => s.codePath !== 'built-in') ?? false;
     if (hasUserSkills) {
       const skillsDir = path.join(process.env.HOME ?? '~', '.config', 'vigilclaw', 'skills');
       if (fs.existsSync(skillsDir)) {
         binds.push(`${skillsDir}:/skills:ro`);
       }
-    }
-
-    // Mount system-commands stub (always, when bridge is available)
-    if (stubDir) {
-      binds.push(`${stubDir}:/skills/system-commands:ro`);
     }
 
     const env = [`TASK_ID=${task.id}`, `CREDENTIAL_PROXY_URL=${proxyUrl}`];

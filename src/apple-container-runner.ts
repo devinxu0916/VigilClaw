@@ -79,6 +79,8 @@ export class AppleContainerRunner implements IRunner {
       );
     }
 
+    // Rewrite system-commands codePath to container-internal IPC path.
+    // Avoids a separate bind mount and conflicts with --read-only rootfs on Apple Container.
     writeTaskInput(ipcDir, {
       taskId: task.id,
       userId: task.userId,
@@ -88,14 +90,18 @@ export class AppleContainerRunner implements IRunner {
       model: task.model,
       maxTokens: 4096,
       tools: task.tools,
-      skills: task.skills,
+      skills: task.skills?.map((s) =>
+        s.name === 'system-commands' && stubDir
+          ? { ...s, codePath: '/ipc/system-commands-stub' }
+          : s,
+      ),
     });
 
     const containerName = `vigilclaw-${task.id.slice(0, 12)}`;
     const bridgeUrl =
       bridgePort !== undefined ? `http://${proxyHost}:${bridgePort}` : undefined;
 
-    const args = this.buildRunArgs(containerName, task, ipcDir, proxyUrl, stubDir, bridgeUrl);
+    const args = this.buildRunArgs(containerName, task, ipcDir, proxyUrl, bridgeUrl);
 
     try {
       await execFile(CONTAINER_CLI, args, { timeout: 10000 });
@@ -173,7 +179,6 @@ export class AppleContainerRunner implements IRunner {
     task: QueuedTask,
     ipcDir: string,
     proxyUrl: string,
-    stubDir?: string,
     bridgeUrl?: string,
   ): string[] {
     const memoryMB = Math.floor(this.config.memoryLimit / (1024 * 1024));
@@ -208,16 +213,13 @@ export class AppleContainerRunner implements IRunner {
       args.push('--volume', `${task.workspaceDir}:/workspace:rw`);
     }
 
+    // Mount user skills dir (if any non-built-in skills exist)
     const hasUserSkills = task.skills?.some((s) => s.codePath !== 'built-in') ?? false;
     if (hasUserSkills) {
       const skillsDir = path.join(process.env.HOME ?? '~', '.config', 'vigilclaw', 'skills');
       if (fs.existsSync(skillsDir)) {
         args.push('--volume', `${skillsDir}:/skills:ro`);
       }
-    }
-
-    if (stubDir) {
-      args.push('--volume', `${stubDir}:/skills/system-commands:ro`);
     }
 
     args.push(this.config.appleImage, 'node', '/app/index.js');
