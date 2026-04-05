@@ -28,7 +28,7 @@ async function checkDocker(docker: Docker): Promise<boolean> {
   }
 }
 
-export function startHealthServer(port: number, db: VigilClawDB, docker: Docker): http.Server {
+export function startHealthServer(port: number, db: VigilClawDB, docker: Docker, host = '0.0.0.0'): http.Server {
   const server = http.createServer((req, res) => {
     void (async () => {
       if (req.url !== '/health') {
@@ -50,7 +50,7 @@ export function startHealthServer(port: number, db: VigilClawDB, docker: Docker)
     })();
   });
 
-  server.listen(port, '127.0.0.1', () => {
+  server.listen(port, host, () => {
     logger.info({ port }, 'Health check server started');
   });
 

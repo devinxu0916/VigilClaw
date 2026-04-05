@@ -1,0 +1,45 @@
+# Dependencies (will be reinstalled in container)
+node_modules/
+container/agent-runner/node_modules/
+
+# Build artifacts
+dist/
+
+# Runtime data
+data/
+
+# Secrets
+.env
+.env.local
+*.key
+
+# Tests & docs
+tests/
+docs/
+openspec/
+coverage/
+
+# Dev tooling
+.git/
+.github/
+.claude/
+*.md
+!README.md
+
+# Logs
+*.log
+logs/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor config
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Deployment artifacts (not needed in image)
+deploy/
+scripts/

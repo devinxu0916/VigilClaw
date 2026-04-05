@@ -19,6 +19,8 @@
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "docker:build": "docker build -t vigilclaw/agent-runner:latest container/agent-runner/",
+    "docker:build:host": "docker build -t vigilclaw/host:latest .",
+    "docker:build:all": "pnpm docker:build && pnpm docker:build:host",
     "apple:build": "container build -t vigilclaw-agent:latest container/agent-runner/",
     "deps:check": "bash scripts/check-deps.sh",
     "deps:audit": "pnpm audit --audit-level=high"

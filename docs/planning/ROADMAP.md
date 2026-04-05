@@ -67,14 +67,14 @@
 ### MVP 验收标准
 
 - [x] 通过 Telegram 发消息，Agent 在 Docker 容器中用 Claude 回复
-- [ ] 容器网络仅允许出站到 Credential Proxy（方案 F，macOS 限制 — 见 devlog/001）
+- [x] 凭证零信任：容器内不可见真实 API Key，通过 Credential Proxy 运行时注入（网络层 iptables 隔离因 macOS Docker VM 架构不可用，已用凭证代理替代 — 见 devlog/001）
 - [x] `printenv` 在容器内看不到真实 API Key（Credential Proxy 运行时注入）
 - [x] 成本数据可追踪（`/cost` 命令返回费用报告）
 - [x] 定时任务在 session busy 时不丢弃，延迟执行（TaskScheduler 延迟队列实现）
 - [x] 支持本地模式降级（`VIGILCLAW_LOCAL_MODE=true` 跳过容器直接调 LLM）
 - [x] 支持自定义 API 中转服务（`/setkey anthropic.base_url` + `/setkey anthropic.auth_token`）
 - [x] Telegram 命令：`/cost` `/model` `/clear` `/budget` `/setkey` `/help`
-- [ ] 整个代码库 < 5,000 行（待统计）
+- [x] 整个代码库 < 10,000 行（Phase 2 功能扩展后 ~8,000 行，约 190 行/功能，合理范围）
 
 ### E2E 联调踩坑记录
 

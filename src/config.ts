@@ -123,6 +123,7 @@ export const ConfigSchema = z.object({
   maxConcurrentContainers: z.number().default(5),
   rateLimit: RateLimitConfigSchema.default({}),
   healthPort: z.number().default(9100),
+  healthHost: z.string().default('0.0.0.0'),
   search: SearchConfigSchema.default({}),
 });
 
@@ -160,6 +161,7 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_DB_PATH: ['dbPath'],
     VIGILCLAW_DATA_DIR: ['dataDir'],
     VIGILCLAW_HEALTH_PORT: ['healthPort'],
+    VIGILCLAW_HEALTH_HOST: ['healthHost'],
     VIGILCLAW_MAX_CONCURRENT_CONTAINERS: ['maxConcurrentContainers'],
     VIGILCLAW_TELEGRAM_BOT_TOKEN: ['telegram', 'botToken'],
     VIGILCLAW_TELEGRAM_MODE: ['telegram', 'mode'],

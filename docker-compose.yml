@@ -5,19 +5,36 @@ services:
       dockerfile: Dockerfile
     container_name: vigilclaw-host
     restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - vigilclaw-data:/app/data
+    env_file: .env
     environment:
-      - VIGILCLAW_LOG_LEVEL=info
-      - VIGILCLAW_TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - VIGILCLAW_MASTER_KEY=${MASTER_KEY}
       - VIGILCLAW_DB_PATH=/app/data/vigilclaw.db
+      - VIGILCLAW_DATA_DIR=/app/data
+      - VIGILCLAW_HEALTH_HOST=0.0.0.0
+      # HuggingFace model cache directory
+      - HF_HOME=/app/models
+    volumes:
+      # Docker socket: required to spawn Agent Runner containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persistent data: SQLite database and IPC files
+      - vigilclaw-data:/app/data
+      # Model cache: persist HuggingFace model downloads across restarts
+      - vigilclaw-models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
 
 volumes:
   vigilclaw-data:
+    driver: local
+  vigilclaw-models:
     driver: local

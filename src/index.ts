@@ -269,6 +269,7 @@ async function main(): Promise<void> {
       config.healthPort,
       db,
       (containerRunner as unknown as { docker: import('dockerode') }).docker,
+      config.healthHost,
     );
   }
 
