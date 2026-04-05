@@ -6,6 +6,25 @@
 
 ### Added
 
+- **Phase 2 P3: 一键部署基础设施** — Docker Compose 生产部署 + CI/CD + 运维脚本
+  - `Dockerfile`：宿主进程多阶段构建（deps → build → runtime），Alpine 基础镜像，非 root 用户运行
+  - `.dockerignore`：优化镜像体积，排除测试/文档/开发工具
+  - `docker-compose.yml` 增强：env_file 加载、healthcheck（curl /health）、安全加固（read_only + tmpfs noexec）、模型缓存卷（HF_HOME 持久化）
+  - `.github/workflows/ci.yml`：GitHub Actions CI 工作流 — lint + typecheck + test + Docker 镜像构建（Buildx + GHA cache）
+  - `deploy/vigilclaw.service`：systemd 服务文件（docker compose 管理）
+  - `scripts/setup.sh`：一键初始化向导（环境检测 + 配置生成 + Master Key 自动生成 + 依赖安装 + Docker 镜像构建）
+  - `scripts/upgrade.sh`：升级脚本（数据库备份 + 代码拉取 + 依赖更新 + 镜像重建 + 服务重启）
+  - `package.json`：新增 `docker:build:host` 和 `docker:build:all` scripts
+  - `src/health.ts`：Health server 支持配置绑定地址（`healthHost`，默认 `0.0.0.0`，容器内需要）
+  - `src/config.ts`：新增 `VIGILCLAW_HEALTH_HOST` 环境变量映射
+
+- **文档: 技术方案第五篇 — 持久化记忆系统** (`docs/architecture/技术方案-第五篇-持久化记忆系统.md`)
+  - 三层记忆架构设计（短期/中期/长期）、向量语义检索、上下文压缩、成本控制、优雅降级
+
+### Changed
+
+- `docs/planning/ROADMAP.md`：MVP 验收标准更新 — 凭证零信任确认、代码量标准从 5K 调整为 10K 行
+
 - **Phase 2 P2: Web Search Bridge** — 为容器内 Agent 提供安全的互联网搜索和页面抓取能力
   - `src/search-bridge.ts`：SearchBridge 类 — per-task HTTP 桥接服务，按需启动/销毁
     - `GET /search` 端点：代理 Brave Search API，返回格式化 Markdown 列表（标题 + URL + 描述 + extra snippets）
