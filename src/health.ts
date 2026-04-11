@@ -3,14 +3,14 @@ import type Docker from 'dockerode';
 import type { VigilClawDB } from './db.js';
 import { logger } from './logger.js';
 
-interface HealthChecks {
+export interface HealthChecks {
   sqlite: boolean;
   docker: boolean;
   uptime: number;
   memoryMB: number;
 }
 
-function checkSqlite(db: VigilClawDB): boolean {
+export function checkSqlite(db: VigilClawDB): boolean {
   try {
     db.getUserDayCost('__health_check__');
     return true;
@@ -19,7 +19,8 @@ function checkSqlite(db: VigilClawDB): boolean {
   }
 }
 
-async function checkDocker(docker: Docker): Promise<boolean> {
+export async function checkDocker(docker: Docker | null): Promise<boolean> {
+  if (!docker) return false;
   try {
     await docker.ping();
     return true;
@@ -28,25 +29,38 @@ async function checkDocker(docker: Docker): Promise<boolean> {
   }
 }
 
-export function startHealthServer(port: number, db: VigilClawDB, docker: Docker, host = '0.0.0.0'): http.Server {
+export function startHealthServer(
+  port: number,
+  db: VigilClawDB,
+  docker: Docker | null,
+  host: string = '0.0.0.0',
+  dashboardHandler?: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+): http.Server {
   const server = http.createServer((req, res) => {
     void (async () => {
-      if (req.url !== '/health') {
-        res.writeHead(404);
-        res.end();
+      // /health always accessible without auth
+      if (req.url === '/health') {
+        const checks: HealthChecks = {
+          sqlite: checkSqlite(db),
+          docker: await checkDocker(docker),
+          uptime: process.uptime(),
+          memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        };
+
+        const healthy = checks.sqlite && (docker === null || checks.docker);
+        res.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: healthy ? 'ok' : 'degraded', checks }));
         return;
       }
 
-      const checks: HealthChecks = {
-        sqlite: checkSqlite(db),
-        docker: await checkDocker(docker),
-        uptime: process.uptime(),
-        memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      };
+      // Delegate to dashboard handler if available
+      if (dashboardHandler) {
+        dashboardHandler(req, res);
+        return;
+      }
 
-      const healthy = checks.sqlite && checks.docker;
-      res.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: healthy ? 'ok' : 'degraded', checks }));
+      res.writeHead(404);
+      res.end();
     })();
   });
 

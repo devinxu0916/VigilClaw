@@ -170,4 +170,176 @@ describe('VigilClawDB', () => {
       });
     });
   });
+
+  // ---- Dashboard queries ----
+
+  describe('getOverviewStats', () => {
+    it('returns zero stats for empty db', () => {
+      const stats = db.getOverviewStats();
+      expect(stats.todayCost).toBe(0);
+      expect(stats.monthCost).toBe(0);
+      expect(stats.todayCalls).toBe(0);
+      expect(stats.monthCalls).toBe(0);
+      expect(stats.todayTasks).toBe(0);
+      expect(stats.monthTasks).toBe(0);
+    });
+
+    it('returns correct stats after inserting data', () => {
+      db.getOrCreateUser('u1', 'Test');
+      db.recordApiCall({
+        taskId: 't1', userId: 'u1', provider: 'anthropic', model: 'claude-sonnet',
+        inputTokens: 1000, outputTokens: 500, costUsd: 0.5,
+      });
+      db.insertTask({ id: 't1', userId: 'u1', inputSummary: 'test' });
+
+      const stats = db.getOverviewStats();
+      expect(stats.todayCost).toBeCloseTo(0.5, 2);
+      expect(stats.todayCalls).toBe(1);
+      expect(stats.todayTasks).toBe(1);
+    });
+  });
+
+  describe('getDailyCosts', () => {
+    it('returns empty array for no data', () => {
+      const costs = db.getDailyCosts(7);
+      expect(costs).toHaveLength(0);
+    });
+
+    it('groups costs by date', () => {
+      db.getOrCreateUser('u1', 'Test');
+      db.recordApiCall({
+        taskId: 't1', userId: 'u1', provider: 'anthropic', model: 'claude',
+        inputTokens: 100, outputTokens: 50, costUsd: 0.1,
+      });
+      db.recordApiCall({
+        taskId: 't2', userId: 'u1', provider: 'anthropic', model: 'claude',
+        inputTokens: 200, outputTokens: 100, costUsd: 0.2,
+      });
+
+      const costs = db.getDailyCosts(7);
+      expect(costs).toHaveLength(1);
+      expect(costs[0]!.calls).toBe(2);
+      expect(costs[0]!.cost).toBeCloseTo(0.3, 2);
+    });
+  });
+
+  describe('getTasksPaginated', () => {
+    it('returns paginated tasks', () => {
+      db.getOrCreateUser('u1', 'Test');
+      for (let i = 0; i < 5; i++) {
+        db.insertTask({ id: `t${i}`, userId: 'u1', inputSummary: `task ${i}` });
+      }
+
+      const { tasks, total } = db.getTasksPaginated(1, 2);
+      expect(total).toBe(5);
+      expect(tasks).toHaveLength(2);
+    });
+  });
+
+  describe('getSecurityEventsPaginated', () => {
+    it('returns paginated security events', () => {
+      for (let i = 0; i < 3; i++) {
+        db.insertSecurityEvent({
+          eventType: 'network_violation', severity: 'high',
+          details: { index: i },
+        });
+      }
+
+      const { events, total } = db.getSecurityEventsPaginated(1, 2);
+      expect(total).toBe(3);
+      expect(events).toHaveLength(2);
+    });
+  });
+
+  describe('listCredentialStatus', () => {
+    it('returns empty when no credentials', () => {
+      const creds = db.listCredentialStatus();
+      expect(creds).toHaveLength(0);
+    });
+
+    it('lists credential providers', () => {
+      db.upsertCredential('anthropic', Buffer.from('enc'), Buffer.from('iv1'));
+      db.upsertCredential('openai', Buffer.from('enc'), Buffer.from('iv2'));
+
+      const creds = db.listCredentialStatus();
+      expect(creds).toHaveLength(2);
+      expect(creds.map((c) => c.provider)).toContain('anthropic');
+    });
+  });
+
+  describe('getAllScheduledTasks', () => {
+    it('returns all scheduled tasks without userId filter', () => {
+      db.getOrCreateUser('u1', 'Test');
+      db.getOrCreateUser('u2', 'Test2');
+      db.insertScheduledTask({
+        id: 's1', userId: 'u1', cronExpression: '0 9 * * *',
+        taskPrompt: 'Task 1', nextRunAt: '2025-01-01 09:00:00',
+      });
+      db.insertScheduledTask({
+        id: 's2', userId: 'u2', cronExpression: '0 10 * * *',
+        taskPrompt: 'Task 2', nextRunAt: '2025-01-01 10:00:00',
+      });
+
+      const tasks = db.getAllScheduledTasks();
+      expect(tasks).toHaveLength(2);
+    });
+  });
+
+  describe('getModelBreakdownToday', () => {
+    it('returns empty array when no calls', () => {
+      const breakdown = db.getModelBreakdownToday();
+      expect(breakdown).toHaveLength(0);
+    });
+
+    it('groups by model', () => {
+      db.getOrCreateUser('u1', 'Test');
+      db.recordApiCall({
+        taskId: 't1', userId: 'u1', provider: 'anthropic', model: 'claude-sonnet',
+        inputTokens: 1000, outputTokens: 500, costUsd: 0.5,
+      });
+      db.recordApiCall({
+        taskId: 't2', userId: 'u1', provider: 'anthropic', model: 'claude-haiku',
+        inputTokens: 500, outputTokens: 200, costUsd: 0.1,
+      });
+
+      const breakdown = db.getModelBreakdownToday();
+      expect(breakdown).toHaveLength(2);
+      expect(breakdown[0]!.model).toBe('claude-sonnet');
+    });
+  });
+
+  describe('admin scheduled task operations', () => {
+    it('toggles scheduled task without userId check', () => {
+      db.getOrCreateUser('u1', 'Test');
+      db.insertScheduledTask({
+        id: 's1', userId: 'u1', cronExpression: '0 9 * * *',
+        taskPrompt: 'Task 1', nextRunAt: '2025-01-01 09:00:00',
+      });
+
+      const toggled = db.adminToggleScheduledTask('s1', false);
+      expect(toggled).toBe(true);
+
+      const task = db.getScheduledTaskById('s1');
+      expect(task).not.toBeNull();
+      expect(task!.enabled).toBe(0);
+    });
+
+    it('deletes scheduled task without userId check', () => {
+      db.getOrCreateUser('u1', 'Test');
+      db.insertScheduledTask({
+        id: 's1', userId: 'u1', cronExpression: '0 9 * * *',
+        taskPrompt: 'Task 1', nextRunAt: '2025-01-01 09:00:00',
+      });
+
+      const deleted = db.adminDeleteScheduledTask('s1');
+      expect(deleted).toBe(true);
+
+      const task = db.getScheduledTaskById('s1');
+      expect(task).toBeNull();
+    });
+
+    it('getScheduledTaskById returns null for non-existent', () => {
+      expect(db.getScheduledTaskById('nonexistent')).toBeNull();
+    });
+  });
 });

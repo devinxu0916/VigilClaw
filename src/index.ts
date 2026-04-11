@@ -20,7 +20,10 @@ import { Router } from './router.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { FeishuChannel } from './channels/feishu.js';
 import { DingTalkChannel } from './channels/dingtalk.js';
-import { startHealthServer } from './health.js';
+import { startHealthServer, checkSqlite, checkDocker } from './health.js';
+import type { HealthChecks } from './health.js';
+import { generateDashboardToken } from './dashboard-auth.js';
+import { createDashboardHandler } from './dashboard-server.js';
 import { ClaudeProvider } from './provider/claude.js';
 import { createProvider } from './provider/factory.js';
 import type { ProviderType } from './provider/factory.js';
@@ -265,12 +268,51 @@ async function main(): Promise<void> {
   taskScheduler.start();
 
   if (runtimeType !== 'local') {
-    startHealthServer(
-      config.healthPort,
-      db,
-      (containerRunner as unknown as { docker: import('dockerode') }).docker,
-      config.healthHost,
-    );
+    const docker = (containerRunner as unknown as { docker: import('dockerode') }).docker;
+    let dashboardHandler: ((req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void) | undefined;
+
+    if (config.dashboardEnabled) {
+      const dashboardToken = generateDashboardToken(masterKey);
+      const dashboardUrl = `http://${config.healthHost === '0.0.0.0' ? '127.0.0.1' : config.healthHost}:${String(config.healthPort)}/?token=${dashboardToken}`;
+      logger.info({ url: dashboardUrl }, 'Dashboard enabled, open URL in browser (cookie will be set automatically)');
+      dashboardHandler = createDashboardHandler({
+        db,
+        token: dashboardToken,
+        skillRegistry,
+        taskScheduler,
+        healthChecks: async (): Promise<HealthChecks> => ({
+          sqlite: checkSqlite(db),
+          docker: await checkDocker(docker),
+          uptime: process.uptime(),
+          memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        }),
+      });
+    }
+
+    startHealthServer(config.healthPort, db, docker, config.healthHost, dashboardHandler);
+  } else {
+    // Local mode: no Docker, but still start health + dashboard server
+    let dashboardHandler: ((req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void) | undefined;
+
+    if (config.dashboardEnabled) {
+      const dashboardToken = generateDashboardToken(masterKey);
+      const dashboardUrl = `http://${config.healthHost === '0.0.0.0' ? '127.0.0.1' : config.healthHost}:${String(config.healthPort)}/?token=${dashboardToken}`;
+      logger.info({ url: dashboardUrl }, 'Dashboard enabled, open URL in browser (cookie will be set automatically)');
+      dashboardHandler = createDashboardHandler({
+        db,
+        token: dashboardToken,
+        skillRegistry,
+        taskScheduler,
+        healthChecks: async (): Promise<HealthChecks> => ({
+          sqlite: checkSqlite(db),
+          docker: false,
+          uptime: process.uptime(),
+          memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        }),
+      });
+    }
+
+    startHealthServer(config.healthPort, db, null, config.healthHost, dashboardHandler);
   }
 
   const cleanupInterval = setInterval(() => {

@@ -125,6 +125,7 @@ export const ConfigSchema = z.object({
   healthPort: z.number().default(9100),
   healthHost: z.string().default('0.0.0.0'),
   search: SearchConfigSchema.default({}),
+  dashboardEnabled: z.boolean().default(true),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -188,6 +189,7 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_RECENT_MESSAGES_KEEP: ['session', 'recentMessagesKeep'],
     VIGILCLAW_MEMORY_ENABLED: ['memory', 'enabled'],
     BRAVE_SEARCH_API_KEY: ['search', 'braveApiKey'],
+    VIGILCLAW_DASHBOARD_ENABLED: ['dashboardEnabled'],
   };
 
   for (const [envKey, value] of Object.entries(process.env)) {

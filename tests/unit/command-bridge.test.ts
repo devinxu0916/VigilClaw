@@ -1,10 +1,56 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import http from 'node:http';
 import { CommandBridge } from '../../src/command-bridge.js';
+import type { VigilClawDB } from '../../src/db.js';
+import type { SkillRegistry } from '../../src/skill-registry.js';
+import type { TaskScheduler } from '../../src/task-scheduler.js';
+import type { SessionManager } from '../../src/session-manager.js';
+
+// ---- Mock interfaces ----
+
+interface MockDb {
+  listScheduledTasks: Mock;
+  deleteScheduledTask: Mock;
+  updateScheduledTaskEnabled: Mock;
+  updateScheduledTaskNextRun: Mock;
+  getUser: Mock;
+  getOrCreateUser: Mock;
+  updateUserModel: Mock;
+  updateUserBudget: Mock;
+  getUserDayCost: Mock;
+  getUserMonthCost: Mock;
+}
+
+interface MockSkillRegistry {
+  listSkills: Mock;
+  installSkill: Mock;
+  removeSkill: Mock;
+  enableSkill: Mock;
+  disableSkill: Mock;
+}
+
+interface MockTaskScheduler {
+  createTask: Mock;
+}
+
+interface MockSessionManager {
+  clearContext: Mock;
+}
+
+// Response body shape (subset used by tests)
+interface ApiResponseData {
+  success?: boolean;
+  error?: string;
+  tasks?: unknown[];
+  dayCost?: number;
+  dayBudget?: number;
+  monthCost?: number;
+  monthBudget?: number;
+}
 
 // ---- Minimal mocks ----
 
-function makeDb(overrides: Record<string, unknown> = {}): ReturnType<typeof import('../../src/db.js').VigilClawDB.prototype.getUser> extends undefined ? never : any {
+function makeDb(overrides: Record<string, Mock> = {}): MockDb {
   return {
     listScheduledTasks: vi.fn().mockReturnValue([]),
     deleteScheduledTask: vi.fn().mockReturnValue(true),
@@ -20,7 +66,7 @@ function makeDb(overrides: Record<string, unknown> = {}): ReturnType<typeof impo
   };
 }
 
-function makeSkillRegistry(overrides: Record<string, unknown> = {}): any {
+function makeSkillRegistry(overrides: Record<string, Mock> = {}): MockSkillRegistry {
   return {
     listSkills: vi.fn().mockReturnValue([]),
     installSkill: vi.fn().mockReturnValue({ success: true }),
@@ -31,13 +77,13 @@ function makeSkillRegistry(overrides: Record<string, unknown> = {}): any {
   };
 }
 
-function makeTaskScheduler(): any {
+function makeTaskScheduler(): MockTaskScheduler {
   return {
     createTask: vi.fn().mockReturnValue('new-task-uuid'),
   };
 }
 
-function makeSessionManager(): any {
+function makeSessionManager(): MockSessionManager {
   return {
     clearContext: vi.fn(),
   };
@@ -69,10 +115,10 @@ async function post(
 
 describe('CommandBridge', () => {
   let bridge: CommandBridge;
-  let db: ReturnType<typeof makeDb>;
-  let skillRegistry: ReturnType<typeof makeSkillRegistry>;
-  let taskScheduler: ReturnType<typeof makeTaskScheduler>;
-  let sessionManager: ReturnType<typeof makeSessionManager>;
+  let db: MockDb;
+  let skillRegistry: MockSkillRegistry;
+  let taskScheduler: MockTaskScheduler;
+  let sessionManager: MockSessionManager;
   let port: number;
   const TASK_ID = 'test-task-id';
   const USER_ID = 'user-1';
@@ -82,7 +128,13 @@ describe('CommandBridge', () => {
     skillRegistry = makeSkillRegistry();
     taskScheduler = makeTaskScheduler();
     sessionManager = makeSessionManager();
-    bridge = new CommandBridge(db, skillRegistry, taskScheduler, sessionManager, new Set(['admin-user']));
+    bridge = new CommandBridge(
+      db as unknown as VigilClawDB,
+      skillRegistry as unknown as SkillRegistry,
+      taskScheduler as unknown as TaskScheduler,
+      sessionManager as unknown as SessionManager,
+      new Set(['admin-user']),
+    );
     port = await bridge.createBridgeForTask(TASK_ID, USER_ID, undefined);
   });
 
@@ -95,7 +147,7 @@ describe('CommandBridge', () => {
   it('rejects request with wrong taskId', async () => {
     const res = await post(port, '/system/schedule/list', { taskId: 'wrong-id', userId: USER_ID });
     expect(res.status).toBe(403);
-    expect((res.data as any).error).toBe('invalid_task_id');
+    expect((res.data as ApiResponseData).error).toBe('invalid_task_id');
   });
 
   it('rejects invalid JSON body', async () => {
@@ -126,14 +178,20 @@ describe('CommandBridge', () => {
 
   it('allows admin to install skill (bridge created for admin user)', async () => {
     // Bridge is bound to admin-user — admin check uses the bound userId, not body
-    const adminBridge = new CommandBridge(db, skillRegistry, taskScheduler, sessionManager, new Set(['admin-user']));
+    const adminBridge = new CommandBridge(
+      db as unknown as VigilClawDB,
+      skillRegistry as unknown as SkillRegistry,
+      taskScheduler as unknown as TaskScheduler,
+      sessionManager as unknown as SessionManager,
+      new Set(['admin-user']),
+    );
     const adminPort = await adminBridge.createBridgeForTask('admin-task', 'admin-user', undefined);
     skillRegistry.installSkill.mockReturnValue({ success: true });
     const res = await post(adminPort, '/system/skill/install', {
       taskId: 'admin-task', userId: 'ignored', sourcePath: '/some/path',
     });
     expect(res.status).toBe(200);
-    expect((res.data as any).success).toBe(true);
+    expect((res.data as ApiResponseData).success).toBe(true);
     await adminBridge.destroyAll();
   });
 
@@ -143,11 +201,17 @@ describe('CommandBridge', () => {
       taskId: TASK_ID, userId: USER_ID, sourcePath: '/some/path',
     });
     expect(res.status).toBe(403);
-    expect((res.data as any).error).toBe('requires_admin');
+    expect((res.data as ApiResponseData).error).toBe('requires_admin');
   });
 
   it('allows all users when adminUsers set is empty', async () => {
-    const openBridge = new CommandBridge(db, skillRegistry, taskScheduler, sessionManager, new Set());
+    const openBridge = new CommandBridge(
+      db as unknown as VigilClawDB,
+      skillRegistry as unknown as SkillRegistry,
+      taskScheduler as unknown as TaskScheduler,
+      sessionManager as unknown as SessionManager,
+      new Set(),
+    );
     const openPort = await openBridge.createBridgeForTask('open-task', USER_ID, undefined);
     const res = await post(openPort, '/system/skill/install', {
       taskId: 'open-task', userId: USER_ID, sourcePath: '/some/path',
@@ -162,7 +226,7 @@ describe('CommandBridge', () => {
     db.listScheduledTasks.mockReturnValue([{ id: 'abc', cron_expression: '0 9 * * *', task_prompt: 'test' }]);
     const res = await post(port, '/system/schedule/list', { taskId: TASK_ID, userId: USER_ID });
     expect(res.status).toBe(200);
-    expect((res.data as any).tasks).toHaveLength(1);
+    expect((res.data as ApiResponseData).tasks).toHaveLength(1);
   });
 
   it('creates scheduled task with valid cron', async () => {
@@ -171,7 +235,7 @@ describe('CommandBridge', () => {
       cronExpression: '0 9 * * *', taskPrompt: '每日早报',
     });
     expect(res.status).toBe(200);
-    expect((res.data as any).success).toBe(true);
+    expect((res.data as ApiResponseData).success).toBe(true);
     expect(taskScheduler.createTask).toHaveBeenCalledWith(
       expect.objectContaining({ cronExpression: '0 9 * * *', taskPrompt: '每日早报' }),
     );
@@ -182,7 +246,7 @@ describe('CommandBridge', () => {
       taskId: TASK_ID, userId: USER_ID, taskPrompt: '早报',
     });
     expect(res.status).toBe(400);
-    expect((res.data as any).error).toBe('missing_field');
+    expect((res.data as ApiResponseData).error).toBe('missing_field');
   });
 
   it('returns invalid_cron when TaskScheduler returns null', async () => {
@@ -192,7 +256,7 @@ describe('CommandBridge', () => {
       cronExpression: 'bad cron', taskPrompt: '早报',
     });
     expect(res.status).toBe(400);
-    expect((res.data as any).error).toBe('invalid_cron');
+    expect((res.data as ApiResponseData).error).toBe('invalid_cron');
   });
 
   it('removes scheduled task by prefix', async () => {
@@ -201,7 +265,7 @@ describe('CommandBridge', () => {
       taskId: TASK_ID, userId: USER_ID, scheduleId: 'abcd',
     });
     expect(res.status).toBe(200);
-    expect((res.data as any).success).toBe(true);
+    expect((res.data as ApiResponseData).success).toBe(true);
   });
 
   it('returns not_found when removing non-existent task', async () => {
@@ -219,7 +283,7 @@ describe('CommandBridge', () => {
       taskId: TASK_ID, userId: USER_ID, model: 'haiku',
     });
     expect(res.status).toBe(200);
-    expect((res.data as any).success).toBe(true);
+    expect((res.data as ApiResponseData).success).toBe(true);
     expect(db.updateUserModel).toHaveBeenCalled();
   });
 
@@ -228,7 +292,7 @@ describe('CommandBridge', () => {
   it('checks budget', async () => {
     const res = await post(port, '/system/budget/check', { taskId: TASK_ID, userId: USER_ID });
     expect(res.status).toBe(200);
-    const data = res.data as any;
+    const data = res.data as ApiResponseData;
     expect(data.dayCost).toBe(1.5);
     expect(data.dayBudget).toBe(10);
   });

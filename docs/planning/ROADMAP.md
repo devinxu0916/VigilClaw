@@ -1,7 +1,7 @@
 # VigilClaw Roadmap
 
 > 最后更新：2026-04-05
-> 状态：Phase 2 进行中 — P1 全部完成 + Skill 系统 ✅ + Apple Container ✅ + 飞书/钉钉渠道 ✅ + 定时任务系统 ✅ + 自然语言命令（CommandBridge）✅ + Web Search Bridge ✅ + 一键部署 ✅
+> 状态：Phase 2 进行中 — P1 全部完成 + Skill 系统 ✅ + Apple Container ✅ + 飞书/钉钉渠道 ✅ + 定时任务系统 ✅ + 自然语言命令（CommandBridge）✅ + Web Search Bridge ✅ + 一键部署 ✅ + Web Dashboard ✅
 
 ---
 
@@ -111,7 +111,7 @@ MVP 跑通后，按优先级迭代。
 | 自然语言命令    | CommandBridge + system-commands skill：用自然语言执行所有系统操作 | 2-3 天 | ✅     |
 | 更多渠道        | 飞书 ✅ / 钉钉 ✅（WSClient / Stream 长连接，零公网 IP） | 每个 2-3 天 | ✅     |
 | Web Search      | SearchBridge + web-search skill：Brave Search + 页面抓取 + Haiku 摘要 | 2-3 天 | ✅     |
-| Web Dashboard   | 配置管理 / 成本监控 / 健康检查                           | 1-2 周      | ⏳     |
+| Web Dashboard   | 配置管理 / 成本监控 / 健康检查                           | 1-2 周      | ✅     |
 | Skill 系统      | 注册表 + 版本管理 + 安全审核                             | 1-2 周      | ✅     |
 | Apple Container | macOS 原生容器支持                                       | 3-5 天      | ✅     |
 

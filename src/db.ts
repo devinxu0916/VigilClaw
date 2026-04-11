@@ -746,6 +746,141 @@ export class VigilClawDB {
     cleanup();
   }
 
+  // ---- Dashboard queries (ad-hoc, low frequency) ----
+
+  getOverviewStats(): {
+    todayCost: number;
+    monthCost: number;
+    todayCalls: number;
+    monthCalls: number;
+    todayTasks: number;
+    monthTasks: number;
+  } {
+    const todayCost = this.db
+      .prepare(`SELECT COALESCE(SUM(cost_usd), 0) as v FROM api_calls WHERE date(created_at) = date('now')`)
+      .get() as { v: number };
+    const monthCost = this.db
+      .prepare(`SELECT COALESCE(SUM(cost_usd), 0) as v FROM api_calls WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)
+      .get() as { v: number };
+    const todayCalls = this.db
+      .prepare(`SELECT COUNT(*) as v FROM api_calls WHERE date(created_at) = date('now')`)
+      .get() as { v: number };
+    const monthCalls = this.db
+      .prepare(`SELECT COUNT(*) as v FROM api_calls WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)
+      .get() as { v: number };
+    const todayTasks = this.db
+      .prepare(`SELECT COUNT(*) as v FROM tasks WHERE date(created_at) = date('now')`)
+      .get() as { v: number };
+    const monthTasks = this.db
+      .prepare(`SELECT COUNT(*) as v FROM tasks WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)
+      .get() as { v: number };
+
+    return {
+      todayCost: todayCost.v,
+      monthCost: monthCost.v,
+      todayCalls: todayCalls.v,
+      monthCalls: monthCalls.v,
+      todayTasks: todayTasks.v,
+      monthTasks: monthTasks.v,
+    };
+  }
+
+  getDailyCosts(days: number): Array<{ date: string; cost: number; calls: number }> {
+    return this.db
+      .prepare(
+        `SELECT date(created_at) as date, COALESCE(SUM(cost_usd), 0) as cost, COUNT(*) as calls
+         FROM api_calls
+         GROUP BY date(created_at)
+         ORDER BY date DESC
+         LIMIT ?`,
+      )
+      .all(days) as Array<{ date: string; cost: number; calls: number }>;
+  }
+
+  getTasksPaginated(
+    page: number,
+    pageSize: number,
+  ): { tasks: Array<Record<string, unknown>>; total: number } {
+    const offset = (page - 1) * pageSize;
+    const total = this.db.prepare(`SELECT COUNT(*) as v FROM tasks`).get() as { v: number };
+    const tasks = this.db
+      .prepare(`SELECT * FROM tasks ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+      .all(pageSize, offset) as Array<Record<string, unknown>>;
+    return { tasks, total: total.v };
+  }
+
+  getSecurityEventsPaginated(
+    page: number,
+    pageSize: number,
+  ): { events: Array<Record<string, unknown>>; total: number } {
+    const offset = (page - 1) * pageSize;
+    const total = this.db.prepare(`SELECT COUNT(*) as v FROM security_events`).get() as {
+      v: number;
+    };
+    const events = this.db
+      .prepare(`SELECT * FROM security_events ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+      .all(pageSize, offset) as Array<Record<string, unknown>>;
+    return { events, total: total.v };
+  }
+
+  listCredentialStatus(): Array<{ provider: string; last_rotated_at: string | null }> {
+    return this.db
+      .prepare(`SELECT provider, last_rotated_at FROM credentials ORDER BY provider`)
+      .all() as Array<{ provider: string; last_rotated_at: string | null }>;
+  }
+
+  getAllScheduledTasks(): ScheduledTaskRow[] {
+    return this.db
+      .prepare(`SELECT * FROM scheduled_tasks ORDER BY created_at DESC`)
+      .all() as ScheduledTaskRow[];
+  }
+
+  getModelBreakdownToday(): Array<{
+    model: string;
+    call_count: number;
+    total_cost: number;
+    input_tokens: number;
+    output_tokens: number;
+  }> {
+    return this.db
+      .prepare(
+        `SELECT model, COUNT(*) as call_count, COALESCE(SUM(cost_usd), 0) as total_cost,
+                COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens
+         FROM api_calls
+         WHERE date(created_at) = date('now')
+         GROUP BY model
+         ORDER BY total_cost DESC`,
+      )
+      .all() as Array<{
+      model: string;
+      call_count: number;
+      total_cost: number;
+      input_tokens: number;
+      output_tokens: number;
+    }>;
+  }
+
+  // Admin-level operations (no userId check, for Dashboard)
+
+  adminToggleScheduledTask(id: string, enabled: boolean): boolean {
+    const result = this.db
+      .prepare(`UPDATE scheduled_tasks SET enabled = ? WHERE id = ?`)
+      .run(enabled ? 1 : 0, id);
+    return result.changes > 0;
+  }
+
+  adminDeleteScheduledTask(id: string): boolean {
+    const result = this.db.prepare(`DELETE FROM scheduled_tasks WHERE id = ?`).run(id);
+    return result.changes > 0;
+  }
+
+  getScheduledTaskById(id: string): ScheduledTaskRow | null {
+    const row = this.db.prepare(`SELECT * FROM scheduled_tasks WHERE id = ?`).get(id) as
+      | ScheduledTaskRow
+      | undefined;
+    return row ?? null;
+  }
+
   close(): void {
     this.db.close();
   }

@@ -6,6 +6,29 @@
 
 ### Added
 
+- **Phase 2 P2: Web Dashboard** — 内嵌式管理界面，htmx + Pico CSS（CDN），零新依赖
+  - `src/dashboard-auth.ts`：Token 生成（SHA-256 from masterKey）+ 认证检查（Bearer header / query param）
+  - `src/dashboard-server.ts`：Dashboard 路由处理器，支持全页渲染和 htmx 片段交换
+    - `GET /`：完整 Dashboard 页面（含 Overview 数据 + 30 秒自动刷新）
+    - `GET /api/overview`：概览片段（今日/本月费用、调用次数、任务数 + 模型消耗明细 + 健康状态）
+    - `GET /api/tasks`：任务列表（分页）+ 定时任务管理
+    - `GET /api/system`：Skill 列表 + 安全事件（分页）+ 凭证状态
+    - `POST /api/schedules/:id/toggle`：定时任务启停切换
+    - `DELETE /api/schedules/:id`：删除定时任务
+    - `POST /api/skills/:name/toggle`：Skill 启停切换
+    - `GET /api/schedules` / `GET /api/skills` / `GET /api/credentials`：独立片段端点
+  - `src/dashboard-views.ts`：HTML 模板函数（renderPage / renderOverview / renderTasks / renderSystem + 行级片段）
+  - `src/db.ts`：新增 7 个 Dashboard 查询方法 + 3 个管理员级操作方法
+    - `getOverviewStats()` / `getDailyCosts()` / `getTasksPaginated()` / `getSecurityEventsPaginated()`
+    - `listCredentialStatus()` / `getAllScheduledTasks()` / `getModelBreakdownToday()`
+    - `adminToggleScheduledTask()` / `adminDeleteScheduledTask()` / `getScheduledTaskById()`
+  - `src/config.ts`：新增 `dashboardEnabled` 配置（默认 true）+ `VIGILCLAW_DASHBOARD_ENABLED` 环境变量
+  - `src/health.ts`：扩展支持可选 dashboardHandler 参数、Docker 可选（null）、导出 HealthChecks / checkSqlite / checkDocker
+  - `src/index.ts`：初始化 Dashboard handler + local 模式也启动 Health server（Docker 检查跳过）
+  - `tests/unit/dashboard-auth.test.ts`：认证模块测试（9 个用例）
+  - `tests/unit/dashboard-server.test.ts`：路由+API 集成测试（17 个用例）
+  - `tests/unit/db.test.ts`：扩展 Dashboard 查询方法测试（16 个用例）
+
 - **Phase 2 P3: 一键部署基础设施** — Docker Compose 生产部署 + CI/CD + 运维脚本
   - `Dockerfile`：宿主进程多阶段构建（deps → build → runtime），Alpine 基础镜像，非 root 用户运行
   - `.dockerignore`：优化镜像体积，排除测试/文档/开发工具
@@ -20,6 +43,13 @@
 
 - **文档: 技术方案第五篇 — 持久化记忆系统** (`docs/architecture/技术方案-第五篇-持久化记忆系统.md`)
   - 三层记忆架构设计（短期/中期/长期）、向量语义检索、上下文压缩、成本控制、优雅降级
+
+### Fixed
+
+- **Telegram Bot 代理支持** — 修复在需要代理的网络环境下 Bot 无法 polling、消息无响应的问题
+  - `src/channels/telegram.ts`：检测 `https_proxy` / `HTTPS_PROXY` / `http_proxy` / `HTTP_PROXY` 环境变量，通过 `https-proxy-agent` 为 grammY（node-fetch）注入代理 agent（`baseFetchConfig.agent`）
+  - `src/channels/telegram.ts`：`bot.start()` 改为显式 `.catch()` 捕获启动错误，防止 polling 失败被静默丢弃
+  - 新增依赖：`https-proxy-agent`
 
 ### Changed
 
