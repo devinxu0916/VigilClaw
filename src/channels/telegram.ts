@@ -1,8 +1,22 @@
 import { Bot, InputFile } from 'grammy';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { IChannel } from './types.js';
 import type { TelegramConfig } from '../config.js';
 import { splitMessage } from './message-utils.js';
 import { logger } from '../logger.js';
+
+// grammY uses node-fetch internally; configure proxy via baseFetchConfig.agent
+function buildBotOptions(): ConstructorParameters<typeof Bot>[1] {
+  const proxyUrl =
+    process.env['https_proxy'] ??
+    process.env['HTTPS_PROXY'] ??
+    process.env['http_proxy'] ??
+    process.env['HTTP_PROXY'];
+  if (!proxyUrl) return undefined;
+  logger.info({ proxyUrl }, 'Telegram bot using proxy');
+  const agent = new HttpsProxyAgent(proxyUrl);
+  return { client: { baseFetchConfig: { agent, compress: true } } };
+}
 
 type MessageHandler = (msg: {
   userId: string;
@@ -18,7 +32,7 @@ export class TelegramChannel implements IChannel {
   private messageHandler: MessageHandler | null = null;
 
   constructor(private config: TelegramConfig) {
-    this.bot = new Bot(config.botToken);
+    this.bot = new Bot(config.botToken, buildBotOptions());
   }
 
   onMessage(handler: MessageHandler): void {
@@ -82,8 +96,10 @@ export class TelegramChannel implements IChannel {
       await this.bot.api.setWebhook(this.config.webhookUrl);
       logger.info({ url: this.config.webhookUrl }, 'Telegram bot started (webhook)');
     } else {
-      void this.bot.start({
+      this.bot.start({
         onStart: () => logger.info('Telegram bot started (polling)'),
+      }).catch((err: unknown) => {
+        logger.error({ err }, 'Telegram bot polling failed');
       });
     }
   }
