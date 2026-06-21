@@ -96,6 +96,14 @@ export const MemoryConfigSchema = z.object({
   embeddingModel: z.string().default('Xenova/all-MiniLM-L6-v2'),
 });
 
+export const KnowledgeGraphConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  maxHops: z.number().min(1).max(3).default(1),
+  maxFacts: z.number().default(10),
+  entitySimilarityThreshold: z.number().min(0).max(1).default(0.5),
+  retentionDays: z.number().default(365),
+});
+
 export const RateLimitConfigSchema = z.object({
   perUser: z.number().default(10),
   perGroup: z.number().default(30),
@@ -120,6 +128,7 @@ export const ConfigSchema = z.object({
   cost: CostConfigSchema.default({}),
   session: SessionConfigSchema.default({}),
   memory: MemoryConfigSchema.default({}),
+  knowledgeGraph: KnowledgeGraphConfigSchema.default({}),
   maxConcurrentContainers: z.number().default(5),
   rateLimit: RateLimitConfigSchema.default({}),
   healthPort: z.number().default(9100),
@@ -137,6 +146,7 @@ export type DockerConfig = z.infer<typeof DockerConfigSchema>;
 export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
 export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
+export type KnowledgeGraphConfig = z.infer<typeof KnowledgeGraphConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type RoutingConfig = z.infer<typeof RoutingConfigSchema>;
 
@@ -188,6 +198,9 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_MAX_CONTEXT_TOKENS: ['session', 'maxContextTokens'],
     VIGILCLAW_RECENT_MESSAGES_KEEP: ['session', 'recentMessagesKeep'],
     VIGILCLAW_MEMORY_ENABLED: ['memory', 'enabled'],
+    VIGILCLAW_KG_ENABLED: ['knowledgeGraph', 'enabled'],
+    VIGILCLAW_KG_MAX_HOPS: ['knowledgeGraph', 'maxHops'],
+    VIGILCLAW_KG_MAX_FACTS: ['knowledgeGraph', 'maxFacts'],
     BRAVE_SEARCH_API_KEY: ['search', 'braveApiKey'],
     VIGILCLAW_DASHBOARD_ENABLED: ['dashboardEnabled'],
   };

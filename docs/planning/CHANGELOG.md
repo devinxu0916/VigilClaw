@@ -6,6 +6,23 @@
 
 ### Added
 
+- **Phase 2 P3: 知识图谱记忆（Knowledge Graph Memory）** — 在自由文本向量记忆之上增加结构化实体-关系图谱层，零新增生产依赖
+  - `src/knowledge-graph-store.ts`：`KnowledgeGraphStore` 类
+    - `extractTriples()`：Haiku 从对话提取 `(subject, predicate, object)` 三元组（JSON 输出，解析失败按空降级），实体去重后写入图谱；成本记入 `api_calls`（`taskId: kg-extract:<scope>`）
+    - `recall()`：两段式召回 — 种子实体定位（实体名向量近邻 + 查询字面匹配）→ 有界图谱遍历（`maxHops` 跳、双向扩展、`maxFacts` 上界）→ 返回 `subject predicate object` 事实
+    - 实体去重：规范化名精确匹配 + sqlite-vec 实体名向量软合并（相似度 ≥ 0.9）
+    - 优雅降级：sqlite-vec 不可用时退化为纯字面匹配，关系存储/遍历照常；`enabled: false` 完全跳过
+  - `src/db.ts`：迁移 v4 — `kg_entities`（实体，`scope_key` 隔离 + 规范化名唯一索引 + `mentions` 计数）、`kg_relations`（三元组，`ON DELETE CASCADE` + 三元组唯一约束）；sqlite-vec 可用时创建 `vec_kg_entities` 虚拟表（实体名向量）
+    - 新增 DAL：`upsertEntity()` / `touchEntity()` / `getEntityById()` / `listEntitiesByScope()` / `insertEntityVector()` / `searchEntityVectors()` / `insertRelation()`（`INSERT OR IGNORE` 去重）/ `getRelationsForEntities()`（JOIN 实体名，双向）
+    - 导出 `normalizeEntityName()` 工具函数
+    - `cleanupOldData()` 扩展：清理超 365 天的关系 + 删除清理后无任何关系的孤立实体（及其向量）
+  - `src/session-manager.ts`：`setKnowledgeGraphStore()` + `getContext()` 在 `[Relevant Memories]` 之后追加注入 `[Knowledge Graph]` 系统消息（空召回不注入）
+  - `src/index.ts`：初始化 `KnowledgeGraphStore`（复用 `embedder` + `summaryProvider`），对话回复后与 `extractMemory` 并列异步触发 `extractTriples`
+  - `src/config.ts`：新增 `knowledgeGraph` 配置段（`enabled` 默认 true、`maxHops` 默认 1、`maxFacts` 默认 10、`entitySimilarityThreshold` 默认 0.5、`retentionDays` 默认 365）+ `VIGILCLAW_KG_ENABLED` / `VIGILCLAW_KG_MAX_HOPS` / `VIGILCLAW_KG_MAX_FACTS` 环境变量
+  - `.env.example`：补充知识图谱记忆配置说明
+  - 单元测试：`tests/unit/knowledge-graph-store.test.ts`（16 个）+ `tests/unit/db.test.ts` 图谱用例（6 个），总计 274 tests 通过
+  - OpenSpec 规范：新增 `knowledge-graph-memory` capability spec + `persistent-memory` MODIFIED delta（注入序列）
+
 - **Phase 2 P2: Web Dashboard** — 内嵌式管理界面，htmx + Pico CSS（CDN），零新依赖
   - `src/dashboard-auth.ts`：Token 生成（SHA-256 from masterKey）+ 认证检查（Bearer header / query param）
   - `src/dashboard-server.ts`：Dashboard 路由处理器，支持全页渲染和 htmx 片段交换

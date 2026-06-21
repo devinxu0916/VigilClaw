@@ -30,6 +30,7 @@ import type { ProviderType } from './provider/factory.js';
 import { ContextCompressor } from './context-compressor.js';
 import { Embedder } from './embedder.js';
 import { MemoryStore } from './memory-store.js';
+import { KnowledgeGraphStore } from './knowledge-graph-store.js';
 import { logger } from './logger.js';
 import type { IChannel } from './channels/types.js';
 import type { QueuedTask } from './types.js';
@@ -66,6 +67,16 @@ async function main(): Promise<void> {
   });
   if (config.memory.enabled) {
     sessionManager.setMemoryStore(memoryStore);
+  }
+
+  const kgStore = new KnowledgeGraphStore(db, embedder, summaryProvider, {
+    enabled: config.knowledgeGraph.enabled,
+    maxHops: config.knowledgeGraph.maxHops,
+    maxFacts: config.knowledgeGraph.maxFacts,
+    entitySimilarityThreshold: config.knowledgeGraph.entitySimilarityThreshold,
+  });
+  if (config.knowledgeGraph.enabled) {
+    sessionManager.setKnowledgeGraphStore(kgStore);
   }
 
   const containerRunner = new ContainerRunner(config.docker, credentialProxy, config.dataDir);
@@ -123,15 +134,25 @@ async function main(): Promise<void> {
       sessionManager.saveAssistantMessage(task.userId, task.groupId, result.response.content);
       await task.replyFn(result.response.content);
 
-      if (config.memory.enabled) {
+      if (config.memory.enabled || config.knowledgeGraph.enabled) {
         const lastUserMsg = [...task.messages].reverse().find((m) => m.role === 'user');
         if (lastUserMsg) {
-          void memoryStore.extractMemory(
-            task.userId,
-            task.groupId,
-            lastUserMsg.content,
-            result.response.content,
-          );
+          if (config.memory.enabled) {
+            void memoryStore.extractMemory(
+              task.userId,
+              task.groupId,
+              lastUserMsg.content,
+              result.response.content,
+            );
+          }
+          if (config.knowledgeGraph.enabled) {
+            void kgStore.extractTriples(
+              task.userId,
+              task.groupId,
+              lastUserMsg.content,
+              result.response.content,
+            );
+          }
         }
       }
     } catch (err) {
