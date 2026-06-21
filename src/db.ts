@@ -7,6 +7,11 @@ import { logger } from './logger.js';
 
 const require = createRequire(import.meta.url);
 
+/** Normalize an entity name for case- and whitespace-insensitive deduplication. */
+export function normalizeEntityName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 const SCHEMA_V1 = `
 CREATE TABLE users (
   id               TEXT PRIMARY KEY,
@@ -165,6 +170,40 @@ CREATE TABLE skills (
 );
 `,
   },
+  {
+    version: 4,
+    description: 'Knowledge graph memory (entities + relations)',
+    up: `
+CREATE TABLE kg_entities (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope_key   TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  name_norm   TEXT NOT NULL,
+  type        TEXT,
+  mentions    INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX idx_kg_entities_scope_name ON kg_entities(scope_key, name_norm);
+
+CREATE TABLE kg_relations (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope_key      TEXT NOT NULL,
+  subject_id     INTEGER NOT NULL,
+  predicate      TEXT NOT NULL,
+  object_id      INTEGER NOT NULL,
+  confidence     REAL NOT NULL DEFAULT 1.0,
+  source_user_id TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (subject_id) REFERENCES kg_entities(id) ON DELETE CASCADE,
+  FOREIGN KEY (object_id)  REFERENCES kg_entities(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_kg_relations_scope   ON kg_relations(scope_key, created_at DESC);
+CREATE INDEX idx_kg_relations_subject ON kg_relations(subject_id);
+CREATE INDEX idx_kg_relations_object  ON kg_relations(object_id);
+CREATE UNIQUE INDEX idx_kg_relations_triple ON kg_relations(scope_key, subject_id, predicate, object_id);
+`,
+  },
 ];
 
 function runMigrations(db: Database.Database): void {
@@ -221,6 +260,17 @@ function initRawDatabase(dbPath: string): { db: Database.Database; vecAvailable:
       } catch (err) {
         logger.warn({ err }, 'Failed to create vec_memories virtual table');
         vecAvailable = false;
+      }
+    }
+    if (vecAvailable && currentVersion >= 4) {
+      try {
+        db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_kg_entities USING vec0(
+            embedding float[384]
+          )
+        `);
+      } catch (err) {
+        logger.warn({ err }, 'Failed to create vec_kg_entities virtual table');
       }
     }
   }
@@ -611,6 +661,133 @@ export class VigilClawDB {
     }>;
   }
 
+  // ---- Knowledge graph (entities + relations) ----
+
+  /** Upsert an entity by normalized name within a scope. Returns its id and whether it was newly created. */
+  upsertEntity(entity: { scopeKey: string; name: string; type?: string }): {
+    id: number;
+    created: boolean;
+  } {
+    const norm = normalizeEntityName(entity.name);
+    const existing = this.db
+      .prepare('SELECT id FROM kg_entities WHERE scope_key = ? AND name_norm = ?')
+      .get(entity.scopeKey, norm) as { id: number } | undefined;
+
+    if (existing) {
+      this.db
+        .prepare(
+          "UPDATE kg_entities SET mentions = mentions + 1, updated_at = datetime('now'), type = COALESCE(type, ?) WHERE id = ?",
+        )
+        .run(entity.type ?? null, existing.id);
+      return { id: existing.id, created: false };
+    }
+
+    const result = this.db
+      .prepare('INSERT INTO kg_entities (scope_key, name, name_norm, type) VALUES (?, ?, ?, ?)')
+      .run(entity.scopeKey, entity.name, norm, entity.type ?? null);
+    return { id: Number(result.lastInsertRowid), created: true };
+  }
+
+  /** Increment an entity's mention count (used when a vector soft-match reuses an existing entity). */
+  touchEntity(id: number): void {
+    this.db
+      .prepare("UPDATE kg_entities SET mentions = mentions + 1, updated_at = datetime('now') WHERE id = ?")
+      .run(id);
+  }
+
+  getEntityById(id: number): { id: number; scope_key: string; name: string } | null {
+    const row = this.db
+      .prepare('SELECT id, scope_key, name FROM kg_entities WHERE id = ?')
+      .get(id) as { id: number; scope_key: string; name: string } | undefined;
+    return row ?? null;
+  }
+
+  listEntitiesByScope(scopeKey: string): Array<{ id: number; name: string; name_norm: string }> {
+    return this.db
+      .prepare('SELECT id, name, name_norm FROM kg_entities WHERE scope_key = ?')
+      .all(scopeKey) as Array<{ id: number; name: string; name_norm: string }>;
+  }
+
+  insertEntityVector(rowid: number, embedding: Float32Array): void {
+    this.db
+      .prepare('INSERT INTO vec_kg_entities(rowid, embedding) VALUES (?, ?)')
+      .run(BigInt(rowid), embedding);
+  }
+
+  searchEntityVectors(
+    queryEmbedding: Float32Array,
+    limit: number,
+  ): Array<{ rowid: number; distance: number }> {
+    return this.db
+      .prepare(
+        `SELECT rowid, distance FROM vec_kg_entities
+         WHERE embedding MATCH ? ORDER BY distance LIMIT ?`,
+      )
+      .all(queryEmbedding, limit) as Array<{ rowid: number; distance: number }>;
+  }
+
+  /** Insert a relation triple; duplicates (same scope/subject/predicate/object) are ignored. */
+  insertRelation(relation: {
+    scopeKey: string;
+    subjectId: number;
+    predicate: string;
+    objectId: number;
+    confidence?: number;
+    sourceUserId?: string;
+  }): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO kg_relations
+           (scope_key, subject_id, predicate, object_id, confidence, source_user_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        relation.scopeKey,
+        relation.subjectId,
+        relation.predicate,
+        relation.objectId,
+        relation.confidence ?? 1.0,
+        relation.sourceUserId ?? null,
+      );
+  }
+
+  /** Fetch all relations touching any of the given entities (either as subject or object). */
+  getRelationsForEntities(
+    scopeKey: string,
+    entityIds: number[],
+  ): Array<{
+    id: number;
+    subject_id: number;
+    subject_name: string;
+    predicate: string;
+    object_id: number;
+    object_name: string;
+    confidence: number;
+    created_at: string;
+  }> {
+    if (entityIds.length === 0) return [];
+    const placeholders = entityIds.map(() => '?').join(',');
+    return this.db
+      .prepare(
+        `SELECT r.id, r.subject_id, s.name AS subject_name, r.predicate,
+                r.object_id, o.name AS object_name, r.confidence, r.created_at
+         FROM kg_relations r
+         JOIN kg_entities s ON s.id = r.subject_id
+         JOIN kg_entities o ON o.id = r.object_id
+         WHERE r.scope_key = ? AND (r.subject_id IN (${placeholders}) OR r.object_id IN (${placeholders}))`,
+      )
+      .all(scopeKey, ...entityIds, ...entityIds) as Array<{
+      id: number;
+      subject_id: number;
+      subject_name: string;
+      predicate: string;
+      object_id: number;
+      object_name: string;
+      confidence: number;
+      created_at: string;
+    }>;
+  }
+
   insertSkill(skill: {
     name: string;
     version: string;
@@ -740,6 +917,40 @@ export class VigilClawDB {
       } else {
         this.db
           .prepare("DELETE FROM memories WHERE created_at < datetime('now', '-365 days')")
+          .run();
+      }
+
+      // Knowledge graph: purge old relations, then remove orphaned entities (and their vectors).
+      this.db
+        .prepare("DELETE FROM kg_relations WHERE created_at < datetime('now', '-365 days')")
+        .run();
+
+      const orphanEntities = this.db
+        .prepare(
+          `SELECT e.id FROM kg_entities e
+           WHERE NOT EXISTS (
+             SELECT 1 FROM kg_relations r WHERE r.subject_id = e.id OR r.object_id = e.id
+           )`,
+        )
+        .all() as Array<{ id: number }>;
+
+      if (orphanEntities.length > 0) {
+        if (this.vecAvailable) {
+          for (const { id } of orphanEntities) {
+            try {
+              this.db.prepare('DELETE FROM vec_kg_entities WHERE rowid = ?').run(BigInt(id));
+            } catch {
+              // vec_kg_entities may not exist if vector table creation failed; ignore.
+            }
+          }
+        }
+        this.db
+          .prepare(
+            `DELETE FROM kg_entities
+             WHERE NOT EXISTS (
+               SELECT 1 FROM kg_relations r WHERE r.subject_id = kg_entities.id OR r.object_id = kg_entities.id
+             )`,
+          )
           .run();
       }
     });
