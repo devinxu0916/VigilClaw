@@ -125,6 +125,22 @@ MVP 跑通后，按优先级迭代。
 
 ---
 
+## Phase 3：进阶能力（草案 · 待确认）
+
+Phase 2 功能完成后的候选方向，主要来自各 change 的 Open Questions 与延期项。优先级与取舍待确认。
+
+| 功能 | 说明 | 来源 |
+| ---- | ---- | ---- |
+| 编排可观测性 | 编排过程（plan + subtasks）持久化 + Dashboard 可视化 | multi-agent OQ1 |
+| 显式 `/agent` 命令 | 作为自动复杂度检测的补充入口 | multi-agent OQ3 |
+| 子 Agent 安全 skill 继承 | 子 Agent 按需获得 Web Search 等受控 skill | multi-agent OQ2 |
+| 嵌套/递归编排 | 子 Agent 可再拆解（需深度/成本/安全护栏） | multi-agent 非目标 |
+| 知识图谱可视化 | Dashboard 浏览实体-关系图谱 | KG OQ2 |
+| 记忆提取合并降本 | 向量记忆 + 图谱三元组合并为单次 Haiku 调用 | KG OQ1 |
+| 多模态输入 | 利用既有 `images` 字段，支持图片理解 | 新 |
+
+---
+
 ## 技术选型
 
 | 维度     | 选择                     | 理由                          |
@@ -155,7 +171,7 @@ MVP 跑通后，按优先级迭代。
 
 归档目录：[milestones/](./milestones/)
 
-_(暂无已归档里程碑)_
+- [Phase 2：差异化能力](./milestones/phase-2-differentiation.md) — 2026-03-13 ~ 06-21（P1/P2/P3 全部交付）
 
 ---
 

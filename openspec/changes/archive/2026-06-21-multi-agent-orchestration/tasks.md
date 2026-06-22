@@ -46,4 +46,4 @@
 - [x] 6.1 更新 `docs/planning/ROADMAP.md`：P3「多 Agent 编排」状态 ⏳ → ✅，更新顶部状态行与「最后更新」日期；P3 全部完成时同步说明
 - [x] 6.2 更新 `docs/planning/CHANGELOG.md`：记录多 Agent 编排变更（新增文件/修改文件/配置/测试数）
 - [x] 6.3 更新 `README.md` Roadmap 表：追加「多 Agent 编排 ✅」
-- [ ] 6.4 同步主 specs：将 `multi-agent-orchestration` 能力合并到 `openspec/specs/`（归档时执行）
+- [x] 6.4 同步主 specs：将 `multi-agent-orchestration` 能力合并到 `openspec/specs/`（归档时执行）
