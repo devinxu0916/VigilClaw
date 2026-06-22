@@ -182,7 +182,7 @@ pnpm apple:build      # 构建 Apple Container 镜像（macOS 26+）
 | ------------------- | --------- | ------------------------------------------------------------ |
 | Phase 0: 架构设计   | ✅ 完成   | PRD + 4篇技术方案 + 4篇调研报告                              |
 | Phase 1: MVP 核心   | ✅ 完成   | Telegram → Docker → LLM → 回复，全链路 E2E 通过             |
-| Phase 2: 差异化能力 | 🔧 进行中 | 多模型 ✅ · 多渠道 ✅ · Skill 系统 ✅ · 持久记忆 ✅ · Web Search ✅ · Apple Container ✅ · 一键部署 ✅ · Web Dashboard ✅ · 知识图谱记忆 ✅ |
+| Phase 2: 差异化能力 | ✅ 功能完成 | 多模型 ✅ · 多渠道 ✅ · Skill 系统 ✅ · 持久记忆 ✅ · Web Search ✅ · Apple Container ✅ · 一键部署 ✅ · Web Dashboard ✅ · 知识图谱记忆 ✅ · 多 Agent 编排 ✅ |
 
 详细路线图见 [ROADMAP.md](./docs/planning/ROADMAP.md)。
 

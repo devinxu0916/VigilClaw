@@ -31,6 +31,8 @@ import { ContextCompressor } from './context-compressor.js';
 import { Embedder } from './embedder.js';
 import { MemoryStore } from './memory-store.js';
 import { KnowledgeGraphStore } from './knowledge-graph-store.js';
+import { Orchestrator } from './orchestrator.js';
+import { RunnerTaskExecutor } from './sub-agent-executor.js';
 import { logger } from './logger.js';
 import type { IChannel } from './channels/types.js';
 import type { QueuedTask } from './types.js';
@@ -100,39 +102,65 @@ async function main(): Promise<void> {
 
   const groupQueue = new GroupQueue(config.maxConcurrentContainers);
 
+  const taskExecutor = new RunnerTaskExecutor(runner);
+  const orchestrator = new Orchestrator(
+    db,
+    taskExecutor,
+    costGuard,
+    summaryProvider,
+    (type: string) => createProvider(type as ProviderType).catch(() => summaryProvider),
+    {
+      enabled: config.orchestration.enabled,
+      maxSubtasks: config.orchestration.maxSubtasks,
+      maxParallel: config.orchestration.maxParallel,
+    },
+  );
+
   groupQueue.setExecutor(async (task: QueuedTask) => {
     db.updateTaskRunning(task.id, `vigilclaw-${task.id.slice(0, 12)}`);
 
     try {
-      const result = await runner.runTask(task);
+      let finalContent: string;
+      let totalCost: number;
 
-      const providerForCost = await createProvider(task.provider as ProviderType).catch(
-        () => summaryProvider,
-      );
-      const cost = providerForCost.estimateCost(
-        result.response.usage.inputTokens,
-        result.response.usage.outputTokens,
-        result.response.model,
-      );
+      const outcome = await orchestrator.maybeRun(task);
+      if (outcome) {
+        finalContent = outcome.content;
+        totalCost = outcome.totalCost;
+      } else {
+        const result = await runner.runTask(task);
 
-      db.recordApiCall({
-        taskId: task.id,
-        userId: task.userId,
-        groupId: task.groupId,
-        provider: task.provider,
-        model: result.response.model,
-        inputTokens: result.response.usage.inputTokens,
-        outputTokens: result.response.usage.outputTokens,
-        costUsd: cost,
-      });
+        const providerForCost = await createProvider(task.provider as ProviderType).catch(
+          () => summaryProvider,
+        );
+        const cost = providerForCost.estimateCost(
+          result.response.usage.inputTokens,
+          result.response.usage.outputTokens,
+          result.response.model,
+        );
+
+        db.recordApiCall({
+          taskId: task.id,
+          userId: task.userId,
+          groupId: task.groupId,
+          provider: task.provider,
+          model: result.response.model,
+          inputTokens: result.response.usage.inputTokens,
+          outputTokens: result.response.usage.outputTokens,
+          costUsd: cost,
+        });
+
+        finalContent = result.response.content;
+        totalCost = cost;
+      }
 
       db.updateTaskCompleted(task.id, 'completed', {
-        outputSummary: result.response.content.slice(0, 200),
-        totalCost: cost,
+        outputSummary: finalContent.slice(0, 200),
+        totalCost,
       });
 
-      sessionManager.saveAssistantMessage(task.userId, task.groupId, result.response.content);
-      await task.replyFn(result.response.content);
+      sessionManager.saveAssistantMessage(task.userId, task.groupId, finalContent);
+      await task.replyFn(finalContent);
 
       if (config.memory.enabled || config.knowledgeGraph.enabled) {
         const lastUserMsg = [...task.messages].reverse().find((m) => m.role === 'user');
@@ -142,7 +170,7 @@ async function main(): Promise<void> {
               task.userId,
               task.groupId,
               lastUserMsg.content,
-              result.response.content,
+              finalContent,
             );
           }
           if (config.knowledgeGraph.enabled) {
@@ -150,7 +178,7 @@ async function main(): Promise<void> {
               task.userId,
               task.groupId,
               lastUserMsg.content,
-              result.response.content,
+              finalContent,
             );
           }
         }

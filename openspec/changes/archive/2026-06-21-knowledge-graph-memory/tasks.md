@@ -46,4 +46,4 @@
 
 - [x] 6.1 更新 `docs/planning/ROADMAP.md`：P3「知识图谱记忆」状态 ⏳ → ✅，更新顶部状态行与「最后更新」日期
 - [x] 6.2 更新 `docs/planning/CHANGELOG.md`：记录 Knowledge Graph Memory 变更（新增文件/修改文件/迁移 v4/配置/测试数）
-- [ ] 6.3 同步主 specs：将本 change 的 `knowledge-graph-memory` 能力与 `persistent-memory` 的 MODIFIED 合并到 `openspec/specs/`（归档时执行）
+- [x] 6.3 同步主 specs：将本 change 的 `knowledge-graph-memory` 能力与 `persistent-memory` 的 MODIFIED 合并到 `openspec/specs/`（归档时执行）
