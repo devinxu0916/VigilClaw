@@ -1,7 +1,7 @@
 # VigilClaw Roadmap
 
 > 最后更新：2026-06-21
-> 状态：Phase 2 进行中 — P1 全部完成 + Skill 系统 ✅ + Apple Container ✅ + 飞书/钉钉渠道 ✅ + 定时任务系统 ✅ + 自然语言命令（CommandBridge）✅ + Web Search Bridge ✅ + 一键部署 ✅ + Web Dashboard ✅ + 知识图谱记忆 ✅（P3 仅剩多 Agent 编排）
+> 状态：Phase 2 功能完成 ✅ — P1/P2/P3 全部交付（含 Skill 系统 · Apple Container · 飞书/钉钉渠道 · 定时任务 · 自然语言命令 · Web Search · 一键部署 · Web Dashboard · 知识图谱记忆 · 多 Agent 编排）
 
 ---
 
@@ -11,7 +11,7 @@
 | ------------------- | ----------- | ------------------ |
 | Phase 0：架构设计   | ✅ 完成     | 2026-03-10 ~ 03-11 |
 | Phase 1：MVP 核心   | ✅ E2E 通过 | 2026-03-11 ~ 03-12 |
-| Phase 2：差异化能力 | 🔧 进行中   | 预计 2-4 周        |
+| Phase 2：差异化能力 | ✅ 功能完成 | 2026-03-13 ~ 06-21 |
 
 ---
 
@@ -119,9 +119,25 @@ MVP 跑通后，按优先级迭代。
 
 | 功能          | 说明                                | 预估   | 状态 |
 | ------------- | ----------------------------------- | ------ | ---- |
-| 多 Agent 编排 | TaskExecutor 接口 + Orchestrator    | 1-2 周 | ⏳   |
+| 多 Agent 编排 | TaskExecutor 接口 + Orchestrator（自动复杂度检测 + Haiku 拆解 + 枢纽辐射有界并发 + 结果综合） | 1-2 周 | ✅   |
 | 知识图谱记忆  | 结构化实体-关系记忆（SQLite 图存储 + 三元组提取 + 图谱遍历召回） | 1-2 周 | ✅   |
 | 一键部署脚本  | Docker Compose + Systemd + 自动更新 | 3-5 天 | ✅   |
+
+---
+
+## Phase 3：进阶能力（草案 · 待确认）
+
+Phase 2 功能完成后的候选方向，主要来自各 change 的 Open Questions 与延期项。优先级与取舍待确认。
+
+| 功能 | 说明 | 来源 |
+| ---- | ---- | ---- |
+| 编排可观测性 | 编排过程（plan + subtasks）持久化 + Dashboard 可视化 | multi-agent OQ1 |
+| 显式 `/agent` 命令 | 作为自动复杂度检测的补充入口 | multi-agent OQ3 |
+| 子 Agent 安全 skill 继承 | 子 Agent 按需获得 Web Search 等受控 skill | multi-agent OQ2 |
+| 嵌套/递归编排 | 子 Agent 可再拆解（需深度/成本/安全护栏） | multi-agent 非目标 |
+| 知识图谱可视化 | Dashboard 浏览实体-关系图谱 | KG OQ2 |
+| 记忆提取合并降本 | 向量记忆 + 图谱三元组合并为单次 Haiku 调用 | KG OQ1 |
+| 多模态输入 | 利用既有 `images` 字段，支持图片理解 | 新 |
 
 ---
 
@@ -155,7 +171,7 @@ MVP 跑通后，按优先级迭代。
 
 归档目录：[milestones/](./milestones/)
 
-_(暂无已归档里程碑)_
+- [Phase 2：差异化能力](./milestones/phase-2-differentiation.md) — 2026-03-13 ~ 06-21（P1/P2/P3 全部交付）
 
 ---
 

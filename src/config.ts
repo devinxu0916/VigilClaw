@@ -104,6 +104,12 @@ export const KnowledgeGraphConfigSchema = z.object({
   retentionDays: z.number().default(365),
 });
 
+export const OrchestrationConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  maxSubtasks: z.number().min(1).max(10).default(5),
+  maxParallel: z.number().min(1).max(10).default(3),
+});
+
 export const RateLimitConfigSchema = z.object({
   perUser: z.number().default(10),
   perGroup: z.number().default(30),
@@ -129,6 +135,7 @@ export const ConfigSchema = z.object({
   session: SessionConfigSchema.default({}),
   memory: MemoryConfigSchema.default({}),
   knowledgeGraph: KnowledgeGraphConfigSchema.default({}),
+  orchestration: OrchestrationConfigSchema.default({}),
   maxConcurrentContainers: z.number().default(5),
   rateLimit: RateLimitConfigSchema.default({}),
   healthPort: z.number().default(9100),
@@ -147,6 +154,7 @@ export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
 export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 export type KnowledgeGraphConfig = z.infer<typeof KnowledgeGraphConfigSchema>;
+export type OrchestrationConfig = z.infer<typeof OrchestrationConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type RoutingConfig = z.infer<typeof RoutingConfigSchema>;
 
@@ -201,6 +209,9 @@ function loadEnvConfig(): Record<string, unknown> {
     VIGILCLAW_KG_ENABLED: ['knowledgeGraph', 'enabled'],
     VIGILCLAW_KG_MAX_HOPS: ['knowledgeGraph', 'maxHops'],
     VIGILCLAW_KG_MAX_FACTS: ['knowledgeGraph', 'maxFacts'],
+    VIGILCLAW_ORCHESTRATION_ENABLED: ['orchestration', 'enabled'],
+    VIGILCLAW_ORCHESTRATION_MAX_SUBTASKS: ['orchestration', 'maxSubtasks'],
+    VIGILCLAW_ORCHESTRATION_MAX_PARALLEL: ['orchestration', 'maxParallel'],
     BRAVE_SEARCH_API_KEY: ['search', 'braveApiKey'],
     VIGILCLAW_DASHBOARD_ENABLED: ['dashboardEnabled'],
   };

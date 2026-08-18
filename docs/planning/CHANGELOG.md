@@ -6,6 +6,23 @@
 
 ### Added
 
+- **Phase 2 P3: 多 Agent 编排（Multi-Agent Orchestration）** — 自动识别复合请求并拆解为子任务并行执行，零新增生产依赖
+  - `src/orchestrator.ts`：`Orchestrator` 类
+    - `shouldOrchestrate()`：零成本启发式闸门（长度 + 枚举/连接词探测）→ 通过才用 Haiku 分类器判定是否编排（`taskId: orchestrate-classify:<id>`），保守倾向不编排
+    - `maybeRun()`：编排入口，返回 outcome 或 null（null 时调用方走单 Agent 路径）
+    - `plan()`：Haiku 把目标拆为结构化子任务 `{id, description, dependsOn}`（`taskId: orchestrate-plan:<id>`），截断到 `maxSubtasks`，≤1 或解析失败则降级
+    - `scheduleWaves()`：按 `dependsOn` 拓扑分波，波内有界并发（`maxParallel`）调用 `TaskExecutor`，依赖输出拼入依赖方 prompt
+    - `synthesize()`：用户模型综合各子任务结果为最终回复（`taskId: orchestrate-synth:<id>`），失败降级为拼接输出
+    - 编排前过 `CostGuard` 预算检查；每次 LLM 调用记入 `api_calls`，`/cost` 可见
+  - `src/orchestration-types.ts`：`TaskExecutor` 接口 + `SubTask` / `SubAgentInput` / `SubAgentResult` 类型
+  - `src/sub-agent-executor.ts`：`RunnerTaskExecutor` — 用现有 `IRunner` 执行子 Agent（基础工具、无 skills、no-op replyFn，天然禁止递归与系统命令）
+  - `src/index.ts`：`GroupQueue` 执行器分支 — 命中编排走 `Orchestrator`，否则保持单 Agent 路径；抽出公共收尾（任务完成 / 回复 / 记忆/图谱提取）共用
+  - `src/config.ts`：新增 `orchestration` 配置段（`enabled` 默认 true、`maxSubtasks` 默认 5、`maxParallel` 默认 3）+ `VIGILCLAW_ORCHESTRATION_*` 环境变量
+  - `.env.example`：补充多 Agent 编排配置说明
+  - 单元测试：`tests/unit/orchestrator.test.ts`（19 个 — 分类/拆解/波次并发/依赖注入/截断/降级/预算/计费），总计 293 tests 通过
+  - OpenSpec 规范：新增 `multi-agent-orchestration` capability spec
+  - **Phase 2 P1/P2/P3 全部交付 — Phase 2 功能完成**
+
 - **Phase 2 P3: 知识图谱记忆（Knowledge Graph Memory）** — 在自由文本向量记忆之上增加结构化实体-关系图谱层，零新增生产依赖
   - `src/knowledge-graph-store.ts`：`KnowledgeGraphStore` 类
     - `extractTriples()`：Haiku 从对话提取 `(subject, predicate, object)` 三元组（JSON 输出，解析失败按空降级），实体去重后写入图谱；成本记入 `api_calls`（`taskId: kg-extract:<scope>`）
